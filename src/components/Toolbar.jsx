@@ -1,4 +1,16 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+
+const ZOOM_PRESETS = [
+  { label: '50%',   value: 0.5  },
+  { label: '75%',   value: 0.75 },
+  { label: '100%',  value: 1.0  },
+  { label: '125%',  value: 1.25 },
+  { label: '150%',  value: 1.5  },
+  { label: '175%',  value: 1.75 },
+  { label: '200%',  value: 2.0  },
+  { label: '300%',  value: 3.0  },
+  { label: 'Fit Width', value: 0 },
+];
 
 export default function Toolbar({
   pdfName,
@@ -8,6 +20,8 @@ export default function Toolbar({
   darkMode,
   sidebarOpen,
   searchQuery,
+  searchCount,
+  searchIndex,
   isElectron,
   onOpenFile,
   onPageChange,
@@ -15,11 +29,42 @@ export default function Toolbar({
   onZoomOut,
   onZoomReset,
   onZoomFit,
+  onZoomSet,
   onToggleDark,
   onToggleSidebar,
   onSearchChange,
+  onSearchNext,
+  onSearchPrev,
+  onPrint,
+  onFullscreen,
+  onRotate,
 }) {
-  const [pageInput, setPageInput] = useState('');
+  const [pageInput,   setPageInput]   = useState('');
+  const [zoomOpen,    setZoomOpen]    = useState(false);
+  const zoomRef = useRef(null);
+  const searchRef = useRef(null);
+
+  // Close zoom dropdown on outside click
+  useEffect(() => {
+    if (!zoomOpen) return;
+    function handler(e) {
+      if (zoomRef.current && !zoomRef.current.contains(e.target)) setZoomOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [zoomOpen]);
+
+  // Ctrl+F focuses search
+  useEffect(() => {
+    function handler(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   function handlePageSubmit(e) {
     e.preventDefault();
@@ -29,16 +74,17 @@ export default function Toolbar({
   }
 
   const scaleLabel = scale === 0
-    ? 'Fit'
+    ? 'Fit Width'
     : `${Math.round(scale * 100)}%`;
 
   return (
     <header className="toolbar">
-      {/* Left group */}
+
+      {/* ── Left ─────────────────────────────────── */}
       <div className="tb-group tb-left">
         <button
           className="tb-btn icon-btn"
-          title="Toggle Sidebar"
+          title={sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
           onClick={onToggleSidebar}
           aria-label="Toggle sidebar"
         >
@@ -58,12 +104,12 @@ export default function Toolbar({
 
         {pdfName && (
           <span className="pdf-name" title={pdfName}>
-            {pdfName.length > 30 ? '…' + pdfName.slice(-28) : pdfName}
+            {pdfName.length > 32 ? '…' + pdfName.slice(-30) : pdfName}
           </span>
         )}
       </div>
 
-      {/* Center group – navigation */}
+      {/* ── Center – navigation ───────────────────── */}
       {numPages > 0 && (
         <div className="tb-group tb-center">
           <button
@@ -71,6 +117,7 @@ export default function Toolbar({
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage <= 1}
             title="Previous page (←)"
+            aria-label="Previous page"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="15 18 9 12 15 6" />
@@ -81,7 +128,7 @@ export default function Toolbar({
             <input
               type="number"
               className="page-input"
-              value={pageInput || currentPage}
+              value={pageInput !== '' ? pageInput : currentPage}
               min={1}
               max={numPages}
               onChange={(e) => setPageInput(e.target.value)}
@@ -97,6 +144,7 @@ export default function Toolbar({
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage >= numPages}
             title="Next page (→)"
+            aria-label="Next page"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="9 18 15 12 9 6" />
@@ -105,26 +153,47 @@ export default function Toolbar({
         </div>
       )}
 
-      {/* Right group – zoom + search + theme */}
+      {/* ── Right – zoom / search / actions ──────── */}
       <div className="tb-group tb-right">
+
         {numPages > 0 && (
           <>
+            {/* Search */}
             <div className="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
+                ref={searchRef}
                 type="text"
-                placeholder="Search…"
+                placeholder="Search… (Ctrl+F)"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.shiftKey ? onSearchPrev?.() : onSearchNext?.();
+                  if (e.key === 'Escape') onSearchChange('');
+                }}
                 className="search-input"
                 aria-label="Search in PDF"
               />
+              {searchQuery && searchCount > 0 && (
+                <span className="search-count">{searchIndex + 1}/{searchCount}</span>
+              )}
+              {searchQuery && searchCount === 0 && (
+                <span className="search-count no-match">0/0</span>
+              )}
+              {searchQuery && (
+                <>
+                  <button className="search-nav-btn" onClick={onSearchPrev} title="Previous match (Shift+Enter)">‹</button>
+                  <button className="search-nav-btn" onClick={onSearchNext} title="Next match (Enter)">›</button>
+                  <button className="search-nav-btn" onClick={() => onSearchChange('')} title="Clear search">✕</button>
+                </>
+              )}
             </div>
 
-            <div className="zoom-group">
+            {/* Zoom controls */}
+            <div className="zoom-group" ref={zoomRef}>
               <button className="tb-btn icon-btn" onClick={onZoomOut} title="Zoom out (-)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" />
@@ -132,9 +201,31 @@ export default function Toolbar({
                   <line x1="8" y1="11" x2="14" y2="11" />
                 </svg>
               </button>
-              <button className="tb-btn zoom-label" onClick={onZoomReset} title="Reset zoom (0)">
-                {scaleLabel}
-              </button>
+
+              <div className="zoom-dropdown-wrap">
+                <button
+                  className="tb-btn zoom-label"
+                  onClick={() => setZoomOpen((o) => !o)}
+                  title="Zoom level — click for presets"
+                >
+                  {scaleLabel} ▾
+                </button>
+                {zoomOpen && (
+                  <ul className="zoom-dropdown">
+                    {ZOOM_PRESETS.map((p) => (
+                      <li key={p.label}>
+                        <button
+                          className={`zoom-option ${scale === p.value ? 'active' : ''}`}
+                          onClick={() => { onZoomSet(p.value); setZoomOpen(false); }}
+                        >
+                          {p.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <button className="tb-btn icon-btn" onClick={onZoomIn} title="Zoom in (+)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8" />
@@ -143,18 +234,38 @@ export default function Toolbar({
                   <line x1="8" y1="11" x2="14" y2="11" />
                 </svg>
               </button>
-              <button className="tb-btn icon-btn" onClick={onZoomFit} title="Fit to width">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="15 3 21 3 21 9" />
-                  <polyline points="9 21 3 21 3 15" />
-                  <line x1="21" y1="3" x2="14" y2="10" />
-                  <line x1="3" y1="21" x2="10" y2="14" />
-                </svg>
-              </button>
             </div>
+
+            {/* Rotate */}
+            <button className="tb-btn icon-btn" onClick={() => onRotate?.('cw')} title="Rotate clockwise">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+
+            {/* Print */}
+            <button className="tb-btn icon-btn" onClick={onPrint} title="Print (Ctrl+P)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="6 9 6 2 18 2 18 9"/>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+            </button>
+
+            {/* Fullscreen */}
+            <button className="tb-btn icon-btn" onClick={onFullscreen} title="Fullscreen (F11)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 3 21 3 21 9"/>
+                <polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
           </>
         )}
 
+        {/* Dark / Light mode */}
         <button
           className="tb-btn icon-btn"
           onClick={onToggleDark}
@@ -179,21 +290,6 @@ export default function Toolbar({
             </svg>
           )}
         </button>
-
-        {!isElectron && (
-          <a
-            href="#"
-            className="tb-btn icon-btn desktop-badge"
-            title="Also available as a desktop app"
-            onClick={(e) => e.preventDefault()}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
-            </svg>
-          </a>
-        )}
       </div>
     </header>
   );
