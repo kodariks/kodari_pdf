@@ -139,18 +139,26 @@ function PageRenderer({
           formLayer.style.setProperty('--scale-factor', effScale);
 
           try {
-            const pdfAnnotations = await page.getAnnotations({ intent: 'display' });
+            const allAnnotations = await page.getAnnotations({ intent: 'display' });
             if (cancelled || gen !== renderGenRef.current) return;
 
-            // Only render if there are annotations to show
-            if (pdfAnnotations.length > 0) {
+            // Filter to form widgets (type 20) and their popups (type 16)
+            // Excludes link annotations that cause full-page yellow overlays
+            const WIDGET = 20;
+            const POPUP  = 16;
+            const formAnnotations = allAnnotations.filter(
+              (a) => a.annotationType === WIDGET || a.annotationType === POPUP
+            );
+
+            // Only render if there are form widgets to show
+            if (formAnnotations.length > 0) {
               const annLayer = new PdfjsAnnotationLayer({
                 div: formLayer,
                 page,
                 viewport: vp,
               });
               await annLayer.render({
-                annotations: pdfAnnotations,
+                annotations: formAnnotations,
                 page,
                 viewport: vp,
                 renderForms: true,
@@ -269,10 +277,8 @@ function PageRenderer({
       {/* pdfjs form layer — renders interactive form widgets (on top of text layer) */}
       <div
         ref={formLayerRef}
-        className="pdfjs-form-layer"
+        className="pdfjs-form-layer annotationLayer"
         style={{
-          width: dimensions.w || 'auto',
-          height: dimensions.h || 'auto',
           pointerEvents: textLayerInteractive ? 'auto' : 'none',
         }}
       />
