@@ -86,7 +86,13 @@ function PageRenderer({
 
         if (cancelled || gen !== renderGenRef.current) return;
 
-        const task = page.render({ canvasContext: ctx, viewport: vp });
+        // annotationMode 2 = ENABLE_FORMS: skip painting form widget
+        // appearances on the canvas (they render as HTML inputs instead)
+        const task = page.render({
+          canvasContext: ctx,
+          viewport: vp,
+          annotationMode: 2,
+        });
         renderTaskRef.current = task;
         await task.promise;
         renderTaskRef.current = null;
