@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -11,97 +11,119 @@ function PageRenderer({ pdf, pageNum, scale, fitWidth, rotation, searchQuery, da
   const canvasRef    = useRef(null);
   const textLayerRef = useRef(null);
   const renderTaskRef = useRef(null);
+  const renderGenRef  = useRef(0);       // generation counter to discard stale renders
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
   const [rendered, setRendered]     = useState(false);
 
-  const renderPage = useCallback(async () => {
+  useEffect(() => {
     if (!pdf || !isVisible) return;
-    const canvas    = canvasRef.current;
-    const textLayer = textLayerRef.current;
-    if (!canvas) return;
 
-    // cancel in-progress render
+    // Bump generation — any in-flight render with an older gen will bail out
+    const gen = ++renderGenRef.current;
+
+    // Cancel any in-progress render task so pdf.js releases the canvas
     if (renderTaskRef.current) {
       try { renderTaskRef.current.cancel(); } catch (_) {}
       renderTaskRef.current = null;
     }
 
-    try {
-      const page     = await pdf.getPage(pageNum);
-      const baseVP   = page.getViewport({ scale: 1, rotation: rotation || 0 });
-      let effScale   = scale === 0 && fitWidth > 0 ? fitWidth / baseVP.width : scale;
-      if (effScale <= 0) effScale = 1;
+    let cancelled = false;
 
-      const vp  = page.getViewport({ scale: effScale, rotation: rotation || 0 });
-      const dpr = window.devicePixelRatio || 1;
+    (async () => {
+      const canvas    = canvasRef.current;
+      const textLayer = textLayerRef.current;
+      if (!canvas) return;
 
-      canvas.width  = Math.floor(vp.width  * dpr);
-      canvas.height = Math.floor(vp.height * dpr);
-      canvas.style.width  = `${vp.width}px`;
-      canvas.style.height = `${vp.height}px`;
+      try {
+        const page     = await pdf.getPage(pageNum);
+        if (cancelled || gen !== renderGenRef.current) return;
 
-      setDimensions({ w: vp.width, h: vp.height });
+        const baseVP   = page.getViewport({ scale: 1, rotation: rotation || 0 });
+        let effScale   = scale === 0 && fitWidth > 0 ? fitWidth / baseVP.width : scale;
+        if (effScale <= 0) effScale = 1;
 
-      const ctx = canvas.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Always paint white paper background (visible in dark mode too)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, vp.width, vp.height);
+        const vp  = page.getViewport({ scale: effScale, rotation: rotation || 0 });
+        const dpr = window.devicePixelRatio || 1;
 
-      const task = page.render({ canvasContext: ctx, viewport: vp });
-      renderTaskRef.current = task;
-      await task.promise;
-      renderTaskRef.current = null;
+        canvas.width  = Math.floor(vp.width  * dpr);
+        canvas.height = Math.floor(vp.height * dpr);
+        canvas.style.width  = `${vp.width}px`;
+        canvas.style.height = `${vp.height}px`;
 
-      // ── Text layer ──────────────────────────────────────────────
-      if (textLayer) {
-        textLayer.innerHTML = '';
-        textLayer.style.width  = `${vp.width}px`;
-        textLayer.style.height = `${vp.height}px`;
+        setDimensions({ w: vp.width, h: vp.height });
 
-        const textContent = await page.getTextContent();
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Always paint white paper background (visible in dark mode too)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, vp.width, vp.height);
 
-        textContent.items.forEach((item) => {
-          if (!item.str) return;
-          const tx = pdfjsLib.Util.transform(vp.transform, item.transform);
-          // tx[0]=scaleX, tx[1]=skew, tx[2]=skew, tx[3]=scaleY, tx[4]=x, tx[5]=y
-          const angle      = Math.atan2(tx[1], tx[0]);
-          const fontSize   = Math.hypot(tx[0], tx[1]);
-          const span       = document.createElement('span');
-          span.textContent = item.str;
+        if (cancelled || gen !== renderGenRef.current) return;
 
-          // Adjust y: tx[5] is the baseline in CSS coords
-          span.style.cssText = `
-            position:absolute;
-            left:${tx[4]}px;
-            top:${tx[5] - fontSize}px;
-            font-size:${fontSize}px;
-            font-family:sans-serif;
-            transform-origin:0 0;
-            transform:rotate(${angle}rad);
-            white-space:pre;
-            color:transparent;
-            cursor:text;
-            user-select:text;
-            line-height:1;
-          `;
-          textLayer.appendChild(span);
-        });
+        const task = page.render({ canvasContext: ctx, viewport: vp });
+        renderTaskRef.current = task;
+        await task.promise;
+        renderTaskRef.current = null;
 
-        if (searchQuery && searchQuery.length > 1) {
-          applySearchHighlights(textLayer, searchQuery);
+        if (cancelled || gen !== renderGenRef.current) return;
+
+        // ── Text layer ──────────────────────────────────────────────
+        if (textLayer) {
+          textLayer.innerHTML = '';
+          textLayer.style.width  = `${vp.width}px`;
+          textLayer.style.height = `${vp.height}px`;
+
+          const textContent = await page.getTextContent();
+          if (cancelled || gen !== renderGenRef.current) return;
+
+          textContent.items.forEach((item) => {
+            if (!item.str) return;
+            const tx = pdfjsLib.Util.transform(vp.transform, item.transform);
+            // tx[0]=scaleX, tx[1]=skew, tx[2]=skew, tx[3]=scaleY, tx[4]=x, tx[5]=y
+            const angle      = Math.atan2(tx[1], tx[0]);
+            const fontSize   = Math.hypot(tx[0], tx[1]);
+            const span       = document.createElement('span');
+            span.textContent = item.str;
+
+            // Adjust y: tx[5] is the baseline in CSS coords
+            span.style.cssText = `
+              position:absolute;
+              left:${tx[4]}px;
+              top:${tx[5] - fontSize}px;
+              font-size:${fontSize}px;
+              font-family:sans-serif;
+              transform-origin:0 0;
+              transform:rotate(${angle}rad);
+              white-space:pre;
+              color:transparent;
+              cursor:text;
+              user-select:text;
+              line-height:1;
+            `;
+            textLayer.appendChild(span);
+          });
+
+          if (searchQuery && searchQuery.length > 1) {
+            applySearchHighlights(textLayer, searchQuery);
+          }
+        }
+
+        setRendered(true);
+      } catch (err) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error('Page render error:', err);
         }
       }
+    })();
 
-      setRendered(true);
-    } catch (err) {
-      if (err?.name !== 'RenderingCancelledException') {
-        console.error('Page render error:', err);
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
       }
-    }
+    };
   }, [pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible]);
-
-  useEffect(() => { renderPage(); }, [renderPage]);
 
   return (
     <div
