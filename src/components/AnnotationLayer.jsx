@@ -22,17 +22,18 @@ export default function AnnotationLayer({
   const [hoveredId, setHoveredId] = useState(null);         // for eraser preview
   const [editingNoteId, setEditingNoteId] = useState(null); // expanded note
 
-  if (!viewport) return null;
-
-  const isInteractive = activeTool === 'draw' || activeTool === 'note' || activeTool === 'eraser';
-
   // ── Drawing handlers ─────────────────────────────────────────────────────
+  // useCallback must be called before any early return to satisfy Rules of Hooks
   const getPointerPos = useCallback((e) => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
     const rect = svg.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }, []);
+
+  if (!viewport) return null;
+
+  const isInteractive = activeTool === 'draw' || activeTool === 'note' || activeTool === 'eraser';
 
   function handlePointerDown(e) {
     if (activeTool === 'draw') {
