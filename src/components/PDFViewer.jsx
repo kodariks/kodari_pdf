@@ -151,6 +151,7 @@ function PageRenderer({
               });
               await annLayer.render({
                 annotations: pdfAnnotations,
+                page,
                 viewport: vp,
                 renderForms: true,
                 annotationStorage: annotationStorage || undefined,
@@ -259,19 +260,21 @@ function PageRenderer({
         onDeleteAnnotation={onDeleteAnnotation}
       />
 
-      {/* pdfjs form layer — renders interactive form widgets */}
+      <div
+        ref={textLayerRef}
+        className="text-layer"
+        style={{ pointerEvents: activeTool === 'highlight' ? 'auto' : 'none' }}
+      />
+
+      {/* pdfjs form layer — renders interactive form widgets (on top of text layer) */}
       <div
         ref={formLayerRef}
         className="pdfjs-form-layer"
         style={{
+          width: dimensions.w || 'auto',
+          height: dimensions.h || 'auto',
           pointerEvents: textLayerInteractive ? 'auto' : 'none',
         }}
-      />
-
-      <div
-        ref={textLayerRef}
-        className="text-layer"
-        style={{ pointerEvents: textLayerInteractive ? 'auto' : 'none' }}
       />
     </div>
   );
