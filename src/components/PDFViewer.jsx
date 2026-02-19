@@ -143,7 +143,6 @@ export default function PDFViewer({
   onPageChange,
   onPasswordNeeded,
   onSearchResults,
-  pdfDocRef,
 }) {
   const containerRef  = useRef(null);
   const [pdf, setPdf] = useState(null);
@@ -172,7 +171,6 @@ export default function PDFViewer({
     task.promise.then((doc) => {
       if (cancelled) return;
       setPdf(doc);
-      if (pdfDocRef) pdfDocRef.current = doc;
       setNumPages(doc.numPages);
       onDocumentLoad(doc.numPages, doc);
       setRenderError(null);
