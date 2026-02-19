@@ -3,6 +3,7 @@ import PDFViewer from './components/PDFViewer.jsx';
 import Toolbar from './components/Toolbar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DropZone from './components/DropZone.jsx';
+import TabBar from './components/TabBar.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -15,29 +16,51 @@ function saveRecent(name) {
   localStorage.setItem('kodari_recent', JSON.stringify(list));
 }
 
+function createTab(data, name, password = null) {
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    name,
+    data,
+    password,
+    currentPage: 1,
+    numPages: 0,
+    scale: 0,        // 0 = fit-to-width
+    rotation: 0,
+    searchQuery: '',
+    searchCount: 0,
+    searchIndex: 0,
+    pdfDoc: null,
+  };
+}
+
 export default function App() {
-  const [pdfFile, setPdfFile]       = useState(null);   // { data: Uint8Array, name: string }
-  const [numPages, setNumPages]     = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale]           = useState(0);      // 0 = fit-to-width default
-  const [rotation, setRotation]     = useState(0);      // 0 | 90 | 180 | 270
+  // ── Tab state ──
+  const [tabs, setTabs]             = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
+
+  // ── App-level state (shared across tabs) ──
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode]     = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchCount, setSearchCount] = useState(0);
-  const [searchIndex, setSearchIndex] = useState(0);
   const [isLoading, setIsLoading]   = useState(false);
   const [error, setError]           = useState(null);
   const [passwordNeeded, setPasswordNeeded] = useState(false);
   const [pendingPasswordData, setPendingPasswordData] = useState(null);
   const [passwordInput, setPasswordInput]   = useState('');
   const [recentFiles, setRecentFiles]       = useState(loadRecent);
-  const [showRecent, setShowRecent]         = useState(false);
   const [isFullscreen, setIsFullscreen]     = useState(false);
 
-  const fileInputRef  = useRef(null);
-  const pdfDocRef     = useRef(null);   // shared PDF document object
-  const [pdfDoc, setPdfDoc] = useState(null); // state version so Sidebar re-renders
+  const fileInputRef = useRef(null);
+
+  // ── Active tab helpers ──
+  const activeTab = tabs.find((t) => t.id === activeTabId) || null;
+
+  function updateTab(tabId, patch) {
+    setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, ...patch } : t)));
+  }
+
+  function updateActiveTab(patch) {
+    if (activeTabId) updateTab(activeTabId, patch);
+  }
 
   // ── Electron: open PDF from menu/OS ──
   useEffect(() => {
@@ -57,7 +80,7 @@ export default function App() {
     }
     window.addEventListener('pdf-zoom', onZoomEvent);
     return () => window.removeEventListener('pdf-zoom', onZoomEvent);
-  }, []);
+  }, [activeTabId, tabs]);
 
   // ── Fullscreen change tracking ──
   useEffect(() => {
@@ -77,11 +100,10 @@ export default function App() {
   }
 
   function loadFromBytes(bytes, fileName, password) {
-    setPdfFile({ data: bytes, name: fileName, password });
-    setCurrentPage(1);
+    const tab = createTab(bytes, fileName, password);
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
     setError(null);
-    setSearchQuery('');
-    setRotation(0);
     saveRecent(fileName);
     setRecentFiles(loadRecent());
   }
@@ -128,20 +150,40 @@ export default function App() {
   const handleDrop = useCallback((file) => loadFromFile(file), []);
   const openFile   = isElectron ? openElectronDialog : openBrowserDialog;
 
+  // ── Tab management ──
+  function switchTab(tabId) {
+    setActiveTabId(tabId);
+    setError(null);
+  }
+
+  function closeTab(tabId) {
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== tabId);
+      if (tabId === activeTabId) {
+        // Switch to the nearest tab
+        const idx = prev.findIndex((t) => t.id === tabId);
+        const newActive = next[Math.min(idx, next.length - 1)] || null;
+        setActiveTabId(newActive?.id || null);
+      }
+      return next;
+    });
+  }
+
   // ── Navigation ──
   function goToPage(page) {
-    setCurrentPage(Math.max(1, Math.min(page, numPages)));
+    if (!activeTab) return;
+    updateActiveTab({ currentPage: Math.max(1, Math.min(page, activeTab.numPages)) });
   }
 
   // ── Zoom ──
-  function zoomIn()         { setScale((s) => Math.min((s || 1) + 0.25, 4.0)); }
-  function zoomOut()        { setScale((s) => Math.max((s || 1) - 0.25, 0.25)); }
-  function zoomReset()      { setScale(1.0); }
-  function zoomFit()        { setScale(0); }
-  function zoomSet(v)       { setScale(v); }
+  function zoomIn()  { updateActiveTab({ scale: Math.min((activeTab?.scale || 1) + 0.25, 4.0) }); }
+  function zoomOut() { updateActiveTab({ scale: Math.max((activeTab?.scale || 1) - 0.25, 0.25) }); }
+  function zoomReset() { updateActiveTab({ scale: 1.0 }); }
+  function zoomFit()   { updateActiveTab({ scale: 0 }); }
+  function zoomSet(v)  { updateActiveTab({ scale: v }); }
 
   // ── Rotation ──
-  function rotateCW()  { setRotation((r) => (r + 90) % 360); }
+  function rotateCW() { updateActiveTab({ rotation: ((activeTab?.rotation || 0) + 90) % 360 }); }
 
   // ── Print ──
   function handlePrint() { window.print(); }
@@ -156,25 +198,35 @@ export default function App() {
   }
 
   // ── Search navigation ──
-  function searchNext() { setSearchIndex((i) => (searchCount > 0 ? (i + 1) % searchCount : 0)); }
-  function searchPrev() { setSearchIndex((i) => (searchCount > 0 ? (i - 1 + searchCount) % searchCount : 0)); }
-  function handleSearchChange(q) { setSearchQuery(q); setSearchIndex(0); }
+  function searchNext() {
+    if (!activeTab) return;
+    const count = activeTab.searchCount;
+    updateActiveTab({ searchIndex: count > 0 ? (activeTab.searchIndex + 1) % count : 0 });
+  }
+  function searchPrev() {
+    if (!activeTab) return;
+    const count = activeTab.searchCount;
+    updateActiveTab({ searchIndex: count > 0 ? (activeTab.searchIndex - 1 + count) % count : 0 });
+  }
+  function handleSearchChange(q) {
+    updateActiveTab({ searchQuery: q, searchIndex: 0 });
+  }
 
   // ── Keyboard shortcuts ──
   useEffect(() => {
     function onKey(e) {
-      if (!pdfFile) return;
+      if (!activeTab) return;
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       switch (e.key) {
         case 'ArrowRight':
         case 'ArrowDown':
-        case 'PageDown': goToPage(currentPage + 1); break;
+        case 'PageDown': goToPage(activeTab.currentPage + 1); break;
         case 'ArrowLeft':
         case 'ArrowUp':
-        case 'PageUp':   goToPage(currentPage - 1); break;
+        case 'PageUp':   goToPage(activeTab.currentPage - 1); break;
         case 'Home': goToPage(1); break;
-        case 'End':  goToPage(numPages); break;
+        case 'End':  goToPage(activeTab.numPages); break;
         case '+': case '=': zoomIn(); break;
         case '-': zoomOut(); break;
         case '0': zoomFit(); break;
@@ -185,7 +237,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [pdfFile, currentPage, numPages]);
+  }, [activeTab]);
 
   return (
     <div className={`app ${darkMode ? 'dark' : 'light'}`}>
@@ -246,15 +298,15 @@ export default function App() {
       )}
 
       <Toolbar
-        pdfName={pdfFile?.name}
-        currentPage={currentPage}
-        numPages={numPages}
-        scale={scale}
+        pdfName={activeTab?.name}
+        currentPage={activeTab?.currentPage || 1}
+        numPages={activeTab?.numPages || 0}
+        scale={activeTab?.scale || 0}
         darkMode={darkMode}
         sidebarOpen={sidebarOpen}
-        searchQuery={searchQuery}
-        searchCount={searchCount}
-        searchIndex={searchIndex}
+        searchQuery={activeTab?.searchQuery || ''}
+        searchCount={activeTab?.searchCount || 0}
+        searchIndex={activeTab?.searchIndex || 0}
         isElectron={isElectron}
         onOpenFile={openFile}
         onPageChange={goToPage}
@@ -273,42 +325,53 @@ export default function App() {
         onRotate={rotateCW}
       />
 
+      {tabs.length > 0 && (
+        <TabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSwitchTab={switchTab}
+          onCloseTab={closeTab}
+          onNewTab={openFile}
+        />
+      )}
+
       <div className="main-area">
-        {pdfFile && sidebarOpen && (
+        {activeTab && sidebarOpen && (
           <Sidebar
-            pdf={pdfDoc}
-            numPages={numPages}
-            currentPage={currentPage}
+            pdf={activeTab.pdfDoc}
+            numPages={activeTab.numPages}
+            currentPage={activeTab.currentPage}
             onPageSelect={goToPage}
           />
         )}
 
         <div className="viewer-container">
-          {!pdfFile ? (
+          {!activeTab ? (
             <DropZone
               onDrop={handleDrop}
               onOpen={openFile}
               isLoading={isLoading}
               recentFiles={recentFiles}
-              onShowRecent={() => setShowRecent((v) => !v)}
+              onShowRecent={() => {}}
             />
           ) : (
             <PDFViewer
-              pdfData={pdfFile.data}
-              password={pdfFile.password}
-              currentPage={currentPage}
-              scale={scale}
-              rotation={rotation}
-              searchQuery={searchQuery}
+              key={activeTab.id}
+              pdfData={activeTab.data}
+              password={activeTab.password}
+              currentPage={activeTab.currentPage}
+              scale={activeTab.scale}
+              rotation={activeTab.rotation}
+              searchQuery={activeTab.searchQuery}
               darkMode={darkMode}
               onDocumentLoad={(n, doc) => {
-                setNumPages(n);
-                if (doc) { pdfDocRef.current = doc; setPdfDoc(doc); }
+                updateTab(activeTab.id, { numPages: n, pdfDoc: doc || null });
               }}
-              onPageChange={goToPage}
-              onSearchResults={(count) => setSearchCount(count)}
-              pdfDocRef={pdfDocRef}
+              onPageChange={(page) => updateTab(activeTab.id, { currentPage: page })}
+              onSearchResults={(count) => updateTab(activeTab.id, { searchCount: count })}
               onPasswordNeeded={(bytes, name) => {
+                // Remove the tab that triggered the password prompt
+                closeTab(activeTab.id);
                 setPendingPasswordData({ bytes, name });
                 setPasswordNeeded(true);
               }}
