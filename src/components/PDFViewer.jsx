@@ -157,7 +157,9 @@ export default function PDFViewer({
   useEffect(() => {
     if (!pdfData) return;
     let cancelled = false;
-    const params = { data: pdfData };
+    // Copy the data so the original ArrayBuffer in tab state isn't detached
+    // when pdf.js transfers it to the Web Worker
+    const params = { data: pdfData.slice(0) };
     if (password) params.password = password;
 
     const task = pdfjsLib.getDocument(params);
