@@ -812,6 +812,235 @@ html, body, #root {
   .page-wrapper { box-shadow: none !important; }
 }
 
+/* ── Annotation Layer ────────────────────────── */
+.annotation-layer {
+  z-index: 2;
+  overflow: visible;
+}
+
+/* Highlight mode cursor on page-wrapper */
+.page-wrapper.highlight-mode .text-layer {
+  cursor: text;
+}
+.page-wrapper.highlight-mode .text-layer ::selection {
+  background: rgba(255, 234, 0, 0.35);
+}
+
+/* ── Annotation Toolbar ─────────────────────── */
+.tb-annotations {
+  gap: 2px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0 8px;
+  margin: 0 4px;
+}
+
+.tool-active {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+.tool-active:hover {
+  background: var(--accent-h) !important;
+}
+
+/* Color picker */
+.ann-color-wrap {
+  position: relative;
+}
+
+.ann-color-btn {
+  position: relative;
+}
+
+.ann-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: block;
+  flex-shrink: 0;
+}
+
+.ann-color-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  z-index: 100;
+}
+
+.ann-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition), border-color var(--transition);
+}
+.ann-color-swatch:hover {
+  transform: scale(1.15);
+}
+.ann-color-swatch.active {
+  border-color: var(--text);
+  transform: scale(1.15);
+}
+
+/* ── Sticky Note Popup ──────────────────────── */
+.note-popup {
+  z-index: 10;
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.note-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  min-height: 30px;
+}
+
+.note-popup-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.note-popup-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.note-popup-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  transition: background var(--transition), color var(--transition);
+}
+.note-popup-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.note-popup-textarea {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+  min-height: 60px;
+  max-height: 200px;
+  outline: none;
+}
+.note-popup-textarea::placeholder {
+  color: var(--muted);
+}
+
+/* ── Annotations Sidebar Panel ──────────────── */
+.annotations-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.ann-page-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.ann-page-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 8px 10px 4px;
+}
+
+.ann-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+  min-height: 32px;
+}
+.ann-item:hover {
+  background: var(--btn);
+}
+
+.ann-item-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ann-item-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ann-item-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ann-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity var(--transition), color var(--transition), background var(--transition);
+}
+.ann-item:hover .ann-item-delete {
+  opacity: 0.6;
+}
+.ann-item-delete:hover {
+  opacity: 1 !important;
+  color: var(--accent);
+  background: var(--btn-h);
+}
+
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 700px) {
   :root { --sidebar-w: 150px; }
@@ -825,4 +1054,5 @@ html, body, #root {
 @media (max-width: 500px) {
   .search-box { display: none; }
   .zoom-group { display: none; }
+  .tb-annotations { display: none; }
 }

@@ -1,0 +1,68 @@
+/**
+ * Sidebar panel listing all annotations grouped by page.
+ * Click to navigate, delete button to remove.
+ */
+export default function AnnotationsPanel({ annotations, onPageSelect, onDeleteAnnotation }) {
+  if (!annotations || annotations.length === 0) {
+    return (
+      <div className="sidebar-loading" style={{ padding: '20px', textAlign: 'center' }}>
+        No annotations yet. Use the toolbar to highlight text, add notes, or draw.
+      </div>
+    );
+  }
+
+  // Group by page
+  const grouped = {};
+  annotations.forEach((ann) => {
+    if (!grouped[ann.page]) grouped[ann.page] = [];
+    grouped[ann.page].push(ann);
+  });
+  const sortedPages = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+  function typeIcon(type) {
+    if (type === 'highlight') return 'H';
+    if (type === 'note') return 'N';
+    if (type === 'drawing') return 'D';
+    return '?';
+  }
+
+  function typeLabel(ann) {
+    if (ann.type === 'highlight') return ann.text?.slice(0, 60) || 'Highlight';
+    if (ann.type === 'note') return ann.content?.slice(0, 60) || 'Empty note';
+    if (ann.type === 'drawing') return 'Drawing';
+    return 'Annotation';
+  }
+
+  return (
+    <div className="annotations-panel">
+      {sortedPages.map((page) => (
+        <div key={page} className="ann-page-group">
+          <div className="ann-page-header">Page {page}</div>
+          {grouped[page]
+            .sort((a, b) => a.createdAt - b.createdAt)
+            .map((ann) => (
+              <div
+                key={ann.id}
+                className="ann-item"
+                onClick={() => onPageSelect(ann.page)}
+              >
+                <span className="ann-item-color" style={{ background: ann.color }} />
+                <span className="ann-item-icon">{typeIcon(ann.type)}</span>
+                <span className="ann-item-text">
+                  {typeLabel(ann)}
+                  {((ann.text?.length || 0) > 60 || (ann.content?.length || 0) > 60) ? '...' : ''}
+                </span>
+                <button
+                  className="ann-item-delete"
+                  onClick={(e) => { e.stopPropagation(); onDeleteAnnotation(ann.id); }}
+                  title="Delete annotation"
+                >
+                  &times;
+                </button>
+              </div>
+            ))}
+        </div>
+      ))}
+    </div>
+  );
+}

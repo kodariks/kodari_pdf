@@ -1,5 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 
+const ANNOTATION_COLORS = [
+  '#FFEA00', // yellow
+  '#76FF03', // green
+  '#00E5FF', // cyan
+  '#FF6E40', // orange
+  '#E040FB', // purple
+  '#FF1744', // red
+];
+
 const ZOOM_PRESETS = [
   { label: '50%',   value: 0.5  },
   { label: '75%',   value: 0.75 },
@@ -38,11 +47,17 @@ export default function Toolbar({
   onPrint,
   onFullscreen,
   onRotate,
+  activeTool,
+  annotationColor,
+  onToolChange,
+  onColorChange,
 }) {
   const [pageInput,   setPageInput]   = useState('');
   const [zoomOpen,    setZoomOpen]    = useState(false);
+  const [colorOpen,   setColorOpen]   = useState(false);
   const zoomRef = useRef(null);
   const searchRef = useRef(null);
+  const colorRef = useRef(null);
 
   // Close zoom dropdown on outside click
   useEffect(() => {
@@ -53,6 +68,16 @@ export default function Toolbar({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [zoomOpen]);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!colorOpen) return;
+    function handler(e) {
+      if (colorRef.current && !colorRef.current.contains(e.target)) setColorOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorOpen]);
 
   // Ctrl+F focuses search
   useEffect(() => {
@@ -150,6 +175,96 @@ export default function Toolbar({
               <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* ── Annotation tools ──────────────────────── */}
+      {numPages > 0 && onToolChange && (
+        <div className="tb-group tb-annotations">
+          {/* Cursor (default) */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'cursor' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('cursor')}
+            title="Select / Cursor (Esc)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+              <path d="M13 13l6 6"/>
+            </svg>
+          </button>
+
+          {/* Highlight */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'highlight' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('highlight')}
+            title="Highlight text (H)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </button>
+
+          {/* Sticky note */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'note' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('note')}
+            title="Sticky note (N)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </button>
+
+          {/* Freehand draw */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'draw' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('draw')}
+            title="Freehand draw (D)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+          </button>
+
+          {/* Eraser */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'eraser' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('eraser')}
+            title="Eraser (E)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 20H7L3 16a1 1 0 0 1 0-1.41l9.59-9.59a2 2 0 0 1 2.83 0L20 9.59a2 2 0 0 1 0 2.83L12.42 20"/>
+              <line x1="18" y1="12.41" x2="11.59" y2="6"/>
+            </svg>
+          </button>
+
+          {/* Color picker */}
+          <div className="ann-color-wrap" ref={colorRef}>
+            <button
+              className="tb-btn icon-btn ann-color-btn"
+              onClick={() => setColorOpen((o) => !o)}
+              title="Annotation color"
+            >
+              <span className="ann-color-dot" style={{ background: annotationColor || '#FFEA00' }} />
+            </button>
+            {colorOpen && (
+              <div className="ann-color-picker">
+                {ANNOTATION_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={`ann-color-swatch ${c === annotationColor ? 'active' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => { onColorChange(c); setColorOpen(false); }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

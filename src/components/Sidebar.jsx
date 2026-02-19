@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import AnnotationsPanel from './AnnotationsPanel.jsx';
 
 const THUMB_WIDTH = 160;
 
@@ -117,8 +118,8 @@ function OutlineItem({ item, pdf, onPageSelect, depth = 0 }) {
 }
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-export default function Sidebar({ pdf, numPages, currentPage, onPageSelect }) {
-  const [tab, setTab]         = useState('thumbs');  // 'thumbs' | 'outline'
+export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, annotations, onDeleteAnnotation }) {
+  const [tab, setTab]         = useState('thumbs');  // 'thumbs' | 'outline' | 'annotations'
   const [outline, setOutline] = useState(null);
   const activeRef             = useRef(null);
 
@@ -167,6 +168,15 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect }) {
             <polyline points="3 18 4 19 6 17"/>
           </svg>
         </button>
+        <button
+          className={`sidebar-tab ${tab === 'annotations' ? 'active' : ''}`}
+          onClick={() => setTab('annotations')}
+          title="Annotations"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </button>
       </div>
 
       {/* Thumbnails */}
@@ -201,6 +211,17 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect }) {
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {/* Annotations */}
+      {tab === 'annotations' && (
+        <div className="sidebar-inner">
+          <AnnotationsPanel
+            annotations={annotations || []}
+            onPageSelect={onPageSelect}
+            onDeleteAnnotation={onDeleteAnnotation || (() => {})}
+          />
         </div>
       )}
     </aside>
