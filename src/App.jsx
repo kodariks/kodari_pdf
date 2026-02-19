@@ -346,7 +346,7 @@ export default function App() {
         )}
 
         <div className="viewer-container">
-          {!activeTab ? (
+          {tabs.length === 0 && (
             <DropZone
               onDrop={handleDrop}
               onOpen={openFile}
@@ -354,29 +354,36 @@ export default function App() {
               recentFiles={recentFiles}
               onShowRecent={() => {}}
             />
-          ) : (
-            <PDFViewer
-              key={activeTab.id}
-              pdfData={activeTab.data}
-              password={activeTab.password}
-              currentPage={activeTab.currentPage}
-              scale={activeTab.scale}
-              rotation={activeTab.rotation}
-              searchQuery={activeTab.searchQuery}
-              darkMode={darkMode}
-              onDocumentLoad={(n, doc) => {
-                updateTab(activeTab.id, { numPages: n, pdfDoc: doc || null });
-              }}
-              onPageChange={(page) => updateTab(activeTab.id, { currentPage: page })}
-              onSearchResults={(count) => updateTab(activeTab.id, { searchCount: count })}
-              onPasswordNeeded={(bytes, name) => {
-                // Remove the tab that triggered the password prompt
-                closeTab(activeTab.id);
-                setPendingPasswordData({ bytes, name });
-                setPasswordNeeded(true);
-              }}
-            />
           )}
+
+          {/* Render ALL tab viewers but only show the active one.
+              This keeps each PDF loaded & rendered when switching tabs. */}
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              style={{ display: tab.id === activeTabId ? 'contents' : 'none' }}
+            >
+              <PDFViewer
+                pdfData={tab.data}
+                password={tab.password}
+                currentPage={tab.currentPage}
+                scale={tab.scale}
+                rotation={tab.rotation}
+                searchQuery={tab.searchQuery}
+                darkMode={darkMode}
+                onDocumentLoad={(n, doc) => {
+                  updateTab(tab.id, { numPages: n, pdfDoc: doc || null });
+                }}
+                onPageChange={(page) => updateTab(tab.id, { currentPage: page })}
+                onSearchResults={(count) => updateTab(tab.id, { searchCount: count })}
+                onPasswordNeeded={(bytes, name) => {
+                  closeTab(tab.id);
+                  setPendingPasswordData({ bytes, name });
+                  setPasswordNeeded(true);
+                }}
+              />
+            </div>
+          ))}
 
           {error && (
             <div className="error-toast">
