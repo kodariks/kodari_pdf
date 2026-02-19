@@ -1,8 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { AnnotationLayer as PdfjsAnnotationLayer } from 'pdfjs-dist';
 import AnnotationLayer from './AnnotationLayer.jsx';
 import { useAnnotations } from '../hooks/useAnnotations.js';
+import { useFormData } from '../hooks/useFormData.js';
 import { viewportToPdfRect } from '../utils/coordTransform.js';
+
+// Minimal linkService stub required by pdfjs AnnotationLayer
+const linkService = {
+  getDestinationHash: () => '#',
+  getAnchorUrl: () => '#',
+  addLinkAttributes: () => {},
+  isPageVisible: () => true,
+  isPageCached: () => true,
+  page: 0,
+  rotation: 0,
+  externalLinkEnabled: true,
+  externalLinkRel: 'noopener noreferrer nofollow',
+  externalLinkTarget: 2,
+};
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -14,12 +30,15 @@ function PageRenderer({
   pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible,
   activeTool, annotationColor, annotations,
   onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
+  annotationStorage,
 }) {
   const canvasRef    = useRef(null);
   const textLayerRef = useRef(null);
+  const formLayerRef = useRef(null);
   const wrapperRef   = useRef(null);
   const renderTaskRef = useRef(null);
   const renderGenRef  = useRef(0);
+  const pdfjsAnnLayerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
   const [rendered, setRendered]     = useState(false);
   const [viewport, setViewport]     = useState(null);
@@ -113,6 +132,38 @@ function PageRenderer({
           }
         }
 
+        // ── Form layer (pdfjs AnnotationLayer) ───────────────────────
+        const formLayer = formLayerRef.current;
+        if (formLayer) {
+          formLayer.innerHTML = '';
+          formLayer.style.setProperty('--scale-factor', effScale);
+
+          try {
+            const pdfAnnotations = await page.getAnnotations({ intent: 'display' });
+            if (cancelled || gen !== renderGenRef.current) return;
+
+            // Only render if there are annotations to show
+            if (pdfAnnotations.length > 0) {
+              const annLayer = new PdfjsAnnotationLayer({
+                div: formLayer,
+                page,
+                viewport: vp,
+              });
+              await annLayer.render({
+                annotations: pdfAnnotations,
+                viewport: vp,
+                renderForms: true,
+                annotationStorage: annotationStorage || undefined,
+                linkService,
+              });
+              pdfjsAnnLayerRef.current = annLayer;
+            }
+          } catch (formErr) {
+            // Form layer errors are non-fatal
+            console.warn('Form layer render error:', formErr);
+          }
+        }
+
         setRendered(true);
       } catch (err) {
         if (err?.name !== 'RenderingCancelledException') {
@@ -196,7 +247,7 @@ function PageRenderer({
       {!rendered && <div className="page-placeholder" />}
       <canvas ref={canvasRef} className="pdf-canvas" />
 
-      {/* Annotation layer — between canvas and text layer */}
+      {/* Custom annotation layer — between canvas and form layer */}
       <AnnotationLayer
         annotations={annotations}
         viewport={viewport}
@@ -206,6 +257,15 @@ function PageRenderer({
         onAddAnnotation={onAddAnnotation}
         onUpdateAnnotation={onUpdateAnnotation}
         onDeleteAnnotation={onDeleteAnnotation}
+      />
+
+      {/* pdfjs form layer — renders interactive form widgets */}
+      <div
+        ref={formLayerRef}
+        className="pdfjs-form-layer"
+        style={{
+          pointerEvents: textLayerInteractive ? 'auto' : 'none',
+        }}
       />
 
       <div
@@ -267,6 +327,10 @@ export default function PDFViewer({
     getPageAnnotations,
   } = useAnnotations(pdfName);
 
+  // ── Form data (AnnotationStorage for pdfjs form fields) ──
+  const [formStorage, setFormStorage] = useState(null);
+  useFormData(pdfName, formStorage);
+
   // Notify parent when annotations change (for sidebar panel)
   useEffect(() => {
     if (onAnnotationsChange) onAnnotationsChange(annotations, deleteAnnotation);
@@ -289,6 +353,7 @@ export default function PDFViewer({
       if (cancelled) return;
       setPdf(doc);
       setNumPages(doc.numPages);
+      setFormStorage(doc.annotationStorage);
       onDocumentLoad(doc.numPages, doc);
       setRenderError(null);
     }).catch((err) => {
@@ -406,6 +471,7 @@ export default function PDFViewer({
               onAddAnnotation={addAnnotation}
               onUpdateAnnotation={updateAnnotation}
               onDeleteAnnotation={deleteAnnotation}
+              annotationStorage={formStorage}
             />
           </div>
         ))}
