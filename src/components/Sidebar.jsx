@@ -31,9 +31,16 @@ function Thumbnail({ pdf, pageNum, isActive, onClick }) {
       const vp       = page.getViewport({ scale });
       const canvas   = canvasRef.current;
       if (!canvas) return;
-      canvas.width   = vp.width;
-      canvas.height  = vp.height;
+
+      // Render at higher resolution for sharp thumbnails on HiDPI screens
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width   = Math.floor(vp.width  * dpr);
+      canvas.height  = Math.floor(vp.height * dpr);
+      canvas.style.width  = `${vp.width}px`;
+      canvas.style.height = `${vp.height}px`;
+
       const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, vp.width, vp.height);
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
