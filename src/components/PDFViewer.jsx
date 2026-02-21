@@ -1,5 +1,24 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { AnnotationLayer as PdfjsAnnotationLayer } from 'pdfjs-dist';
+import AnnotationLayer from './AnnotationLayer.jsx';
+import { useAnnotations } from '../hooks/useAnnotations.js';
+import { useFormData } from '../hooks/useFormData.js';
+import { viewportToPdfRect } from '../utils/coordTransform.js';
+
+// Minimal linkService stub required by pdfjs AnnotationLayer
+const linkService = {
+  getDestinationHash: () => '#',
+  getAnchorUrl: () => '#',
+  addLinkAttributes: () => {},
+  isPageVisible: () => true,
+  isPageCached: () => true,
+  page: 0,
+  rotation: 0,
+  externalLinkEnabled: true,
+  externalLinkRel: 'noopener noreferrer nofollow',
+  externalLinkTarget: 2,
+};
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -7,111 +26,268 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 // ── Single page component ──────────────────────────────────────────────────
-function PageRenderer({ pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible }) {
+function PageRenderer({
+  pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible,
+  activeTool, annotationColor, annotations,
+  onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
+  annotationStorage,
+}) {
   const canvasRef    = useRef(null);
   const textLayerRef = useRef(null);
+  const formLayerRef = useRef(null);
+  const wrapperRef   = useRef(null);
   const renderTaskRef = useRef(null);
+  const renderGenRef  = useRef(0);
+  const pdfjsAnnLayerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ w: 0, h: 0 });
   const [rendered, setRendered]     = useState(false);
+  const [viewport, setViewport]     = useState(null);
 
-  const renderPage = useCallback(async () => {
+  useEffect(() => {
     if (!pdf || !isVisible) return;
-    const canvas    = canvasRef.current;
-    const textLayer = textLayerRef.current;
-    if (!canvas) return;
 
-    // cancel in-progress render
+    const gen = ++renderGenRef.current;
+
     if (renderTaskRef.current) {
       try { renderTaskRef.current.cancel(); } catch (_) {}
       renderTaskRef.current = null;
     }
 
-    try {
-      const page     = await pdf.getPage(pageNum);
-      const baseVP   = page.getViewport({ scale: 1, rotation: rotation || 0 });
-      let effScale   = scale === 0 && fitWidth > 0 ? fitWidth / baseVP.width : scale;
-      if (effScale <= 0) effScale = 1;
+    let cancelled = false;
 
-      const vp  = page.getViewport({ scale: effScale, rotation: rotation || 0 });
-      const dpr = window.devicePixelRatio || 1;
+    (async () => {
+      const canvas    = canvasRef.current;
+      const textLayer = textLayerRef.current;
+      if (!canvas) return;
 
-      canvas.width  = Math.floor(vp.width  * dpr);
-      canvas.height = Math.floor(vp.height * dpr);
-      canvas.style.width  = `${vp.width}px`;
-      canvas.style.height = `${vp.height}px`;
+      try {
+        const page     = await pdf.getPage(pageNum);
+        if (cancelled || gen !== renderGenRef.current) return;
 
-      setDimensions({ w: vp.width, h: vp.height });
+        const baseVP   = page.getViewport({ scale: 1, rotation: rotation || 0 });
+        let effScale   = scale === 0 && fitWidth > 0 ? fitWidth / baseVP.width : scale;
+        if (effScale <= 0) effScale = 1;
 
-      const ctx = canvas.getContext('2d');
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Always paint white paper background (visible in dark mode too)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, vp.width, vp.height);
+        const vp  = page.getViewport({ scale: effScale, rotation: rotation || 0 });
+        const dpr = window.devicePixelRatio || 1;
 
-      const task = page.render({ canvasContext: ctx, viewport: vp });
-      renderTaskRef.current = task;
-      await task.promise;
-      renderTaskRef.current = null;
+        canvas.width  = Math.floor(vp.width  * dpr);
+        canvas.height = Math.floor(vp.height * dpr);
+        canvas.style.width  = `${vp.width}px`;
+        canvas.style.height = `${vp.height}px`;
 
-      // ── Text layer ──────────────────────────────────────────────
-      if (textLayer) {
-        textLayer.innerHTML = '';
-        textLayer.style.width  = `${vp.width}px`;
-        textLayer.style.height = `${vp.height}px`;
+        setDimensions({ w: vp.width, h: vp.height });
+        setViewport(vp);
 
-        const textContent = await page.getTextContent();
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, vp.width, vp.height);
 
-        textContent.items.forEach((item) => {
-          if (!item.str) return;
-          const tx = pdfjsLib.Util.transform(vp.transform, item.transform);
-          // tx[0]=scaleX, tx[1]=skew, tx[2]=skew, tx[3]=scaleY, tx[4]=x, tx[5]=y
-          const angle      = Math.atan2(tx[1], tx[0]);
-          const fontSize   = Math.hypot(tx[0], tx[1]);
-          const span       = document.createElement('span');
-          span.textContent = item.str;
+        if (cancelled || gen !== renderGenRef.current) return;
 
-          // Adjust y: tx[5] is the baseline in CSS coords
-          span.style.cssText = `
-            position:absolute;
-            left:${tx[4]}px;
-            top:${tx[5] - fontSize}px;
-            font-size:${fontSize}px;
-            font-family:sans-serif;
-            transform-origin:0 0;
-            transform:rotate(${angle}rad);
-            white-space:pre;
-            color:transparent;
-            cursor:text;
-            user-select:text;
-            line-height:1;
-          `;
-          textLayer.appendChild(span);
+        // annotationMode 2 = ENABLE_FORMS: skip painting form widget
+        // appearances on the canvas (they render as HTML inputs instead)
+        const task = page.render({
+          canvasContext: ctx,
+          viewport: vp,
+          annotationMode: 2,
         });
+        renderTaskRef.current = task;
+        await task.promise;
+        renderTaskRef.current = null;
 
-        if (searchQuery && searchQuery.length > 1) {
-          applySearchHighlights(textLayer, searchQuery);
+        if (cancelled || gen !== renderGenRef.current) return;
+
+        // ── Text layer ──────────────────────────────────────────────
+        if (textLayer) {
+          textLayer.innerHTML = '';
+          textLayer.style.width  = `${vp.width}px`;
+          textLayer.style.height = `${vp.height}px`;
+
+          const textContent = await page.getTextContent();
+          if (cancelled || gen !== renderGenRef.current) return;
+
+          textContent.items.forEach((item) => {
+            if (!item.str) return;
+            const tx = pdfjsLib.Util.transform(vp.transform, item.transform);
+            const angle      = Math.atan2(tx[1], tx[0]);
+            const fontSize   = Math.hypot(tx[0], tx[1]);
+            const span       = document.createElement('span');
+            span.textContent = item.str;
+
+            span.style.cssText = `
+              position:absolute;
+              left:${tx[4]}px;
+              top:${tx[5] - fontSize}px;
+              font-size:${fontSize}px;
+              font-family:sans-serif;
+              transform-origin:0 0;
+              transform:rotate(${angle}rad);
+              white-space:pre;
+              color:transparent;
+              cursor:text;
+              user-select:text;
+              line-height:1;
+            `;
+            textLayer.appendChild(span);
+          });
+
+          if (searchQuery && searchQuery.length > 1) {
+            applySearchHighlights(textLayer, searchQuery);
+          }
+        }
+
+        // ── Form layer (pdfjs AnnotationLayer) ───────────────────────
+        const formLayer = formLayerRef.current;
+        if (formLayer) {
+          formLayer.innerHTML = '';
+          formLayer.style.setProperty('--scale-factor', effScale);
+
+          try {
+            const allAnnotations = await page.getAnnotations({ intent: 'display' });
+            if (cancelled || gen !== renderGenRef.current) return;
+
+            // Filter to form widgets (type 20) and their popups (type 16)
+            // Excludes link annotations that cause full-page yellow overlays
+            const WIDGET = 20;
+            const POPUP  = 16;
+            const formAnnotations = allAnnotations.filter(
+              (a) => a.annotationType === WIDGET || a.annotationType === POPUP
+            );
+
+            // Only render if there are form widgets to show
+            if (formAnnotations.length > 0) {
+              const annLayer = new PdfjsAnnotationLayer({
+                div: formLayer,
+                page,
+                viewport: vp,
+              });
+              await annLayer.render({
+                annotations: formAnnotations,
+                page,
+                viewport: vp,
+                renderForms: true,
+                annotationStorage: annotationStorage || undefined,
+                linkService,
+              });
+              pdfjsAnnLayerRef.current = annLayer;
+            }
+          } catch (formErr) {
+            // Form layer errors are non-fatal
+            console.warn('Form layer render error:', formErr);
+          }
+        }
+
+        setRendered(true);
+      } catch (err) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error('Page render error:', err);
         }
       }
+    })();
 
-      setRendered(true);
-    } catch (err) {
-      if (err?.name !== 'RenderingCancelledException') {
-        console.error('Page render error:', err);
+    return () => {
+      cancelled = true;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (_) {}
+        renderTaskRef.current = null;
       }
-    }
+    };
   }, [pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible]);
 
-  useEffect(() => { renderPage(); }, [renderPage]);
+  // ── Text highlight creation via mouseup ──────────────────────────────────
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const textLayer = textLayerRef.current;
+    if (!wrapper || !textLayer || activeTool !== 'highlight' || !viewport) return;
+
+    function handleMouseUp() {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return;
+
+      const range = selection.getRangeAt(0);
+      const clientRects = Array.from(range.getClientRects());
+      const layerBounds = textLayer.getBoundingClientRect();
+
+      const pdfRects = clientRects
+        .filter((r) => {
+          // Only include rects that overlap with this page's text layer
+          return (
+            r.right > layerBounds.left &&
+            r.left < layerBounds.right &&
+            r.bottom > layerBounds.top &&
+            r.top < layerBounds.bottom &&
+            r.width > 0 && r.height > 0
+          );
+        })
+        .map((r) => {
+          const relRect = {
+            x: r.left - layerBounds.left,
+            y: r.top - layerBounds.top,
+            w: r.width,
+            h: r.height,
+          };
+          return viewportToPdfRect(relRect, viewport);
+        });
+
+      if (pdfRects.length === 0) return;
+
+      const text = selection.toString();
+      selection.removeAllRanges();
+
+      onAddAnnotation({
+        type: 'highlight',
+        page: pageNum,
+        color: annotationColor,
+        rects: pdfRects,
+        text,
+      });
+    }
+
+    wrapper.addEventListener('mouseup', handleMouseUp);
+    return () => wrapper.removeEventListener('mouseup', handleMouseUp);
+  }, [activeTool, viewport, pageNum, annotationColor, onAddAnnotation]);
+
+  // Toggle text layer pointer-events based on active tool
+  const textLayerInteractive = activeTool === 'cursor' || activeTool === 'highlight';
 
   return (
     <div
-      className="page-wrapper"
+      ref={wrapperRef}
+      className={`page-wrapper ${activeTool === 'highlight' ? 'highlight-mode' : ''}`}
       style={{ width: dimensions.w || 'auto', height: dimensions.h || 200 }}
       data-page={pageNum}
     >
       {!rendered && <div className="page-placeholder" />}
       <canvas ref={canvasRef} className="pdf-canvas" />
-      <div ref={textLayerRef} className="text-layer" />
+
+      {/* Custom annotation layer — between canvas and form layer */}
+      <AnnotationLayer
+        annotations={annotations}
+        viewport={viewport}
+        pageNum={pageNum}
+        activeTool={activeTool}
+        annotationColor={annotationColor}
+        onAddAnnotation={onAddAnnotation}
+        onUpdateAnnotation={onUpdateAnnotation}
+        onDeleteAnnotation={onDeleteAnnotation}
+      />
+
+      <div
+        ref={textLayerRef}
+        className="text-layer"
+        style={{ pointerEvents: activeTool === 'highlight' ? 'auto' : 'none' }}
+      />
+
+      {/* pdfjs form layer — renders interactive form widgets (on top of text layer) */}
+      <div
+        ref={formLayerRef}
+        className="pdfjs-form-layer annotationLayer"
+        style={{
+          pointerEvents: textLayerInteractive ? 'auto' : 'none',
+        }}
+      />
     </div>
   );
 }
@@ -133,16 +309,20 @@ function applySearchHighlights(container, query) {
 // ── Main viewer ───────────────────────────────────────────────────────────
 export default function PDFViewer({
   pdfData,
+  pdfName,
   password,
   currentPage,
   scale,
   rotation,
   searchQuery,
   darkMode,
+  activeTool,
+  annotationColor,
   onDocumentLoad,
   onPageChange,
   onPasswordNeeded,
   onSearchResults,
+  onAnnotationsChange,
 }) {
   const containerRef  = useRef(null);
   const [pdf, setPdf] = useState(null);
@@ -153,27 +333,42 @@ export default function PDFViewer({
   const scrollingToPage = useRef(false);
   const pageRefs = useRef({});
 
+  // ── Annotations (per-viewer, backed by localStorage) ──
+  const {
+    annotations,
+    addAnnotation,
+    updateAnnotation,
+    deleteAnnotation,
+    getPageAnnotations,
+  } = useAnnotations(pdfName);
+
+  // ── Form data (AnnotationStorage for pdfjs form fields) ──
+  const [formStorage, setFormStorage] = useState(null);
+  useFormData(pdfName, formStorage);
+
+  // Notify parent when annotations change (for sidebar panel)
+  useEffect(() => {
+    if (onAnnotationsChange) onAnnotationsChange(annotations, deleteAnnotation);
+  }, [annotations]);
+
   // ── Load document ──
   useEffect(() => {
     if (!pdfData) return;
     let cancelled = false;
-    // Copy the data so the original ArrayBuffer in tab state isn't detached
-    // when pdf.js transfers it to the Web Worker
     const params = { data: pdfData.slice(0) };
     if (password) params.password = password;
 
     const task = pdfjsLib.getDocument(params);
 
     task.onPassword = (updatePassword, reason) => {
-      // reason 1 = need password, reason 2 = wrong password
       if (onPasswordNeeded) onPasswordNeeded(pdfData, '');
-      // pdfjs will stall; we let the modal handle retry
     };
 
     task.promise.then((doc) => {
       if (cancelled) return;
       setPdf(doc);
       setNumPages(doc.numPages);
+      setFormStorage(doc.annotationStorage);
       onDocumentLoad(doc.numPages, doc);
       setRenderError(null);
     }).catch((err) => {
@@ -214,7 +409,6 @@ export default function PDFViewer({
           return next;
         });
 
-        // Update current page to the most-visible page
         if (!scrollingToPage.current) {
           let bestPage = currentPage;
           let bestRatio = 0;
@@ -232,7 +426,6 @@ export default function PDFViewer({
       { root: container, threshold: [0, 0.1, 0.4, 0.7, 1] }
     );
 
-    // Observe all page wrappers
     const wrappers = container.querySelectorAll('.page-wrapper[data-page]');
     wrappers.forEach((w) => io.observe(w));
 
@@ -255,7 +448,6 @@ export default function PDFViewer({
     function onWheel(e) {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      // Expose zoom callbacks via window event
       window.dispatchEvent(new CustomEvent('pdf-zoom', { detail: { delta: e.deltaY } }));
     }
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -288,6 +480,13 @@ export default function PDFViewer({
               searchQuery={searchQuery}
               darkMode={darkMode}
               isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 1}
+              activeTool={activeTool || 'cursor'}
+              annotationColor={annotationColor || '#FFEA00'}
+              annotations={getPageAnnotations(n)}
+              onAddAnnotation={addAnnotation}
+              onUpdateAnnotation={updateAnnotation}
+              onDeleteAnnotation={deleteAnnotation}
+              annotationStorage={formStorage}
             />
           </div>
         ))}

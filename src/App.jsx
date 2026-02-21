@@ -48,6 +48,10 @@ export default function App() {
   const [passwordInput, setPasswordInput]   = useState('');
   const [recentFiles, setRecentFiles]       = useState(loadRecent);
   const [isFullscreen, setIsFullscreen]     = useState(false);
+  const [activeTool, setActiveTool]         = useState('cursor');
+  const [annotationColor, setAnnotationColor] = useState('#FFEA00');
+  const [activeAnnotations, setActiveAnnotations] = useState([]);
+  const deleteAnnotationRef = useRef(null);
 
   const fileInputRef = useRef(null);
 
@@ -232,6 +236,11 @@ export default function App() {
         case '0': zoomFit(); break;
         case 'F11': e.preventDefault(); handleFullscreen(); break;
         case 'r': rotateCW(); break;
+        case 'Escape': setActiveTool('cursor'); break;
+        case 'h': case 'H': setActiveTool('highlight'); break;
+        case 'n': case 'N': setActiveTool('note'); break;
+        case 'd': case 'D': setActiveTool('draw'); break;
+        case 'e': case 'E': setActiveTool('eraser'); break;
         default: break;
       }
     }
@@ -323,6 +332,10 @@ export default function App() {
         onPrint={handlePrint}
         onFullscreen={handleFullscreen}
         onRotate={rotateCW}
+        activeTool={activeTool}
+        annotationColor={annotationColor}
+        onToolChange={setActiveTool}
+        onColorChange={setAnnotationColor}
       />
 
       {tabs.length > 0 && (
@@ -342,11 +355,13 @@ export default function App() {
             numPages={activeTab.numPages}
             currentPage={activeTab.currentPage}
             onPageSelect={goToPage}
+            annotations={activeAnnotations}
+            onDeleteAnnotation={(id) => deleteAnnotationRef.current?.(id)}
           />
         )}
 
         <div className="viewer-container">
-          {!activeTab ? (
+          {tabs.length === 0 && (
             <DropZone
               onDrop={handleDrop}
               onOpen={openFile}
@@ -354,29 +369,45 @@ export default function App() {
               recentFiles={recentFiles}
               onShowRecent={() => {}}
             />
-          ) : (
-            <PDFViewer
-              key={activeTab.id}
-              pdfData={activeTab.data}
-              password={activeTab.password}
-              currentPage={activeTab.currentPage}
-              scale={activeTab.scale}
-              rotation={activeTab.rotation}
-              searchQuery={activeTab.searchQuery}
-              darkMode={darkMode}
-              onDocumentLoad={(n, doc) => {
-                updateTab(activeTab.id, { numPages: n, pdfDoc: doc || null });
-              }}
-              onPageChange={(page) => updateTab(activeTab.id, { currentPage: page })}
-              onSearchResults={(count) => updateTab(activeTab.id, { searchCount: count })}
-              onPasswordNeeded={(bytes, name) => {
-                // Remove the tab that triggered the password prompt
-                closeTab(activeTab.id);
-                setPendingPasswordData({ bytes, name });
-                setPasswordNeeded(true);
-              }}
-            />
           )}
+
+          {/* Render ALL tab viewers but only show the active one.
+              This keeps each PDF loaded & rendered when switching tabs. */}
+          {tabs.map((tab) => (
+            <div
+              key={tab.id}
+              style={{ display: tab.id === activeTabId ? 'contents' : 'none' }}
+            >
+              <PDFViewer
+                pdfData={tab.data}
+                pdfName={tab.name}
+                password={tab.password}
+                currentPage={tab.currentPage}
+                scale={tab.scale}
+                rotation={tab.rotation}
+                searchQuery={tab.searchQuery}
+                darkMode={darkMode}
+                activeTool={activeTool}
+                annotationColor={annotationColor}
+                onDocumentLoad={(n, doc) => {
+                  updateTab(tab.id, { numPages: n, pdfDoc: doc || null });
+                }}
+                onPageChange={(page) => updateTab(tab.id, { currentPage: page })}
+                onSearchResults={(count) => updateTab(tab.id, { searchCount: count })}
+                onPasswordNeeded={(bytes, name) => {
+                  closeTab(tab.id);
+                  setPendingPasswordData({ bytes, name });
+                  setPasswordNeeded(true);
+                }}
+                onAnnotationsChange={(anns, deleteFn) => {
+                  if (tab.id === activeTabId) {
+                    setActiveAnnotations(anns);
+                    deleteAnnotationRef.current = deleteFn;
+                  }
+                }}
+              />
+            </div>
+          ))}
 
           {error && (
             <div className="error-toast">

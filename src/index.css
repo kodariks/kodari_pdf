@@ -812,6 +812,498 @@ html, body, #root {
   .page-wrapper { box-shadow: none !important; }
 }
 
+/* ── Annotation Layer ────────────────────────── */
+.annotation-layer {
+  z-index: 2;
+  overflow: visible;
+}
+
+/* Highlight mode cursor on page-wrapper */
+.page-wrapper.highlight-mode .text-layer {
+  cursor: text;
+}
+.page-wrapper.highlight-mode .text-layer ::selection {
+  background: rgba(255, 234, 0, 0.35);
+}
+
+/* ── Annotation Toolbar ─────────────────────── */
+.tb-annotations {
+  gap: 2px;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  padding: 0 8px;
+  margin: 0 4px;
+}
+
+.tool-active {
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+.tool-active:hover {
+  background: var(--accent-h) !important;
+}
+
+/* Color picker */
+.ann-color-wrap {
+  position: relative;
+}
+
+.ann-color-btn {
+  position: relative;
+}
+
+.ann-color-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: block;
+  flex-shrink: 0;
+}
+
+.ann-color-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  z-index: 100;
+}
+
+.ann-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--transition), border-color var(--transition);
+}
+.ann-color-swatch:hover {
+  transform: scale(1.15);
+}
+.ann-color-swatch.active {
+  border-color: var(--text);
+  transform: scale(1.15);
+}
+
+/* ── Sticky Note Popup ──────────────────────── */
+.note-popup {
+  z-index: 10;
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.note-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  min-height: 30px;
+}
+
+.note-popup-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.note-popup-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.note-popup-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  transition: background var(--transition), color var(--transition);
+}
+.note-popup-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.note-popup-textarea {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 10px;
+  font-size: 13px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+  min-height: 60px;
+  max-height: 200px;
+  outline: none;
+}
+.note-popup-textarea::placeholder {
+  color: var(--muted);
+}
+
+/* ── Annotations Sidebar Panel ──────────────── */
+.annotations-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.ann-page-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.ann-page-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  padding: 8px 10px 4px;
+}
+
+.ann-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+  min-height: 32px;
+}
+.ann-item:hover {
+  background: var(--btn);
+}
+
+.ann-item-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ann-item-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.ann-item-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.ann-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity var(--transition), color var(--transition), background var(--transition);
+}
+.ann-item:hover .ann-item-delete {
+  opacity: 0.6;
+}
+.ann-item-delete:hover {
+  opacity: 1 !important;
+  color: var(--accent);
+  background: var(--btn-h);
+}
+
+/* ── pdfjs Form Layer (interactive form widgets) ── */
+/* NOTE: pdfjs AnnotationLayer renders directly into the div passed to its
+   constructor — it does NOT create a child div. So .pdfjs-form-layer and
+   .annotationLayer are the SAME element. All child selectors use
+   .pdfjs-form-layer as the root. */
+.pdfjs-form-layer {
+  --annotation-unfocused-field-background: url("data:image/svg+xml;charset=UTF-8,<svg width='1px' height='1px' xmlns='http://www.w3.org/2000/svg'><rect width='100%' height='100%' style='fill:rgba(0, 54, 255, 0.13);'/></svg>");
+  --input-focus-border-color: Highlight;
+  --input-focus-outline: 1px solid Canvas;
+  --input-unfocused-border-color: transparent;
+  --input-disabled-border-color: transparent;
+  --input-hover-border-color: black;
+  --link-outline: none;
+
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.pdfjs-form-layer section {
+  position: absolute;
+  text-align: initial;
+  pointer-events: auto;
+  box-sizing: border-box;
+  transform-origin: 0 0;
+}
+
+.pdfjs-form-layer .annotationContent {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Hide canvas appearances when a div replaces them (pdfjs editor support) */
+.pdfjs-form-layer section:has(div.annotationContent) canvas.annotationContent {
+  display: none;
+}
+
+/* Hide the pre-rendered appearance canvases when renderForms is active —
+   the form inputs replace them, so the canvas appearance is redundant and
+   can cause visual artifacts (e.g. yellow/colored field backgrounds). */
+.pdfjs-form-layer section canvas {
+  display: none;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.pushButton > a {
+  position: absolute;
+  font-size: 1em;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pdfjs-form-layer .hasBorder {
+  background-size: 100% 100%;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation :is(input, textarea),
+.pdfjs-form-layer .choiceWidgetAnnotation select,
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+  background-image: var(--annotation-unfocused-field-background);
+  border: 2px solid var(--input-unfocused-border-color);
+  box-sizing: border-box;
+  font: calc(9px * var(--scale-factor)) sans-serif;
+  height: 100%;
+  margin: 0;
+  vertical-align: top;
+  width: 100%;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation :is(input, textarea):required,
+.pdfjs-form-layer .choiceWidgetAnnotation select:required,
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:required {
+  outline: 1.5px solid red;
+}
+
+.pdfjs-form-layer .choiceWidgetAnnotation select option {
+  padding: 0;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.radioButton input {
+  border-radius: 50%;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation textarea {
+  resize: none;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation [disabled]:is(input, textarea),
+.pdfjs-form-layer .choiceWidgetAnnotation select[disabled],
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input[disabled] {
+  background: none;
+  border: 2px solid var(--input-disabled-border-color);
+  cursor: not-allowed;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation :is(input, textarea):hover,
+.pdfjs-form-layer .choiceWidgetAnnotation select:hover,
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:hover {
+  border: 2px solid var(--input-hover-border-color);
+}
+
+.pdfjs-form-layer .textWidgetAnnotation :is(input, textarea):hover,
+.pdfjs-form-layer .choiceWidgetAnnotation select:hover,
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:hover {
+  border-radius: 2px;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation :is(input, textarea):focus,
+.pdfjs-form-layer .choiceWidgetAnnotation select:focus {
+  background: none;
+  border: 2px solid var(--input-focus-border-color);
+  border-radius: 2px;
+  outline: var(--input-focus-outline);
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) :focus {
+  background-image: none;
+  background-color: transparent;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox :focus {
+  border: 2px solid var(--input-focus-border-color);
+  border-radius: 2px;
+  outline: var(--input-focus-outline);
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.radioButton :focus {
+  border: 2px solid var(--input-focus-border-color);
+  outline: var(--input-focus-outline);
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::before,
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::after,
+.pdfjs-form-layer .buttonWidgetAnnotation.radioButton input:checked::before {
+  background-color: CanvasText;
+  content: "";
+  display: block;
+  position: absolute;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::before,
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::after {
+  height: 80%;
+  left: 45%;
+  width: 1px;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::before {
+  transform: rotate(45deg);
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.checkBox input:checked::after {
+  transform: rotate(-45deg);
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation.radioButton input:checked::before {
+  border-radius: 50%;
+  height: 50%;
+  left: 25%;
+  top: 25%;
+  width: 50%;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation input.comb {
+  font-family: monospace;
+  padding-left: 2px;
+  padding-right: 0;
+}
+
+.pdfjs-form-layer .textWidgetAnnotation input.comb:focus {
+  width: 103%;
+}
+
+.pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.pdfjs-form-layer .popupAnnotation {
+  position: absolute;
+  font-size: calc(9px * var(--scale-factor));
+  pointer-events: none;
+  width: max-content;
+  max-width: 45%;
+  height: auto;
+}
+
+.pdfjs-form-layer .popup {
+  background-color: rgb(255 255 153);
+  box-shadow: 0 calc(2px * var(--scale-factor)) calc(5px * var(--scale-factor)) rgb(136 136 136);
+  border-radius: calc(2px * var(--scale-factor));
+  outline: 1.5px solid rgb(255 255 74);
+  padding: calc(6px * var(--scale-factor));
+  cursor: pointer;
+  font: message-box;
+  white-space: normal;
+  word-wrap: break-word;
+  pointer-events: auto;
+}
+
+.pdfjs-form-layer .popup * {
+  font-size: calc(9px * var(--scale-factor));
+}
+
+.pdfjs-form-layer .textAnnotation img {
+  position: absolute;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.pdfjs-form-layer .popupTriggerArea {
+  cursor: pointer;
+}
+
+.pdfjs-form-layer .fileAttachmentAnnotation .popupTriggerArea {
+  height: 100%;
+  width: 100%;
+}
+
+/* Rotation support */
+.pdfjs-form-layer[data-main-rotation="90"] .norotate {
+  transform: rotate(270deg) translateX(-100%);
+}
+.pdfjs-form-layer[data-main-rotation="180"] .norotate {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+.pdfjs-form-layer[data-main-rotation="270"] .norotate {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+/* Disabled state */
+.pdfjs-form-layer.disabled section,
+.pdfjs-form-layer.disabled .popup {
+  pointer-events: none;
+}
+
+/* High contrast mode */
+@media screen and (forced-colors: active) {
+  .pdfjs-form-layer {
+    --input-focus-border-color: CanvasText;
+    --input-unfocused-border-color: ActiveText;
+    --input-disabled-border-color: GrayText;
+    --input-hover-border-color: Highlight;
+    --link-outline: 1.5px solid LinkText;
+  }
+  .pdfjs-form-layer .textWidgetAnnotation :is(input, textarea):required,
+  .pdfjs-form-layer .choiceWidgetAnnotation select:required,
+  .pdfjs-form-layer .buttonWidgetAnnotation:is(.checkBox, .radioButton) input:required {
+    outline: 1.5px solid selectedItem;
+  }
+}
+
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 700px) {
   :root { --sidebar-w: 150px; }
@@ -825,4 +1317,5 @@ html, body, #root {
 @media (max-width: 500px) {
   .search-box { display: none; }
   .zoom-group { display: none; }
+  .tb-annotations { display: none; }
 }
