@@ -7,6 +7,7 @@ import TabBar from './components/TabBar.jsx';
 import MergeModal from './components/MergeModal.jsx';
 import SplitModal from './components/SplitModal.jsx';
 import PageManagerModal from './components/PageManagerModal.jsx';
+import CompressModal from './components/CompressModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -318,6 +319,14 @@ export default function App() {
       )}
       {activeModal === 'split' && (
         <SplitModal onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'compress' && (
+        <CompressModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          pdfDoc={activeTab?.pdfDoc}
+          onClose={() => setActiveModal(null)}
+        />
       )}
       {activeModal === 'rearrange' && (
         <PageManagerModal
