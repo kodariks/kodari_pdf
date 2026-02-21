@@ -1539,6 +1539,59 @@ html, body, #root {
   margin: 4px 0;
 }
 
+/* ── Split Modal ─────────────────────────────── */
+.split-file-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.split-options { display: flex; flex-direction: column; gap: 12px; }
+
+.split-mode-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+
+.split-mode-tab {
+  flex: 1;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.split-mode-tab:hover  { background: var(--btn-h); color: var(--text); }
+.split-mode-tab.active { background: var(--accent); color: #fff; }
+
+.split-option-body { padding: 4px 0; }
+
+.split-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.split-preview-count {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 12px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent);
+}
+
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 700px) {
   :root { --sidebar-w: 150px; }

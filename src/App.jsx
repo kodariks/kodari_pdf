@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar.jsx';
 import DropZone from './components/DropZone.jsx';
 import TabBar from './components/TabBar.jsx';
 import MergeModal from './components/MergeModal.jsx';
+import SplitModal from './components/SplitModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -313,6 +314,9 @@ export default function App() {
       {/* ── Feature Modals ── */}
       {activeModal === 'merge' && (
         <MergeModal onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'split' && (
+        <SplitModal onClose={() => setActiveModal(null)} />
       )}
 
       <Toolbar
