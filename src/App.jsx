@@ -13,6 +13,8 @@ import UnlockModal from './components/UnlockModal.jsx';
 import PageNumbersModal from './components/PageNumbersModal.jsx';
 import ImageToPDFModal from './components/ImageToPDFModal.jsx';
 import SignatureModal from './components/SignatureModal.jsx';
+import ConvertModal from './components/ConvertModal.jsx';
+import WordToPDFModal from './components/WordToPDFModal.jsx';
 import { exportAnnotatedPDF } from './utils/exportPDF.js';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
@@ -442,6 +444,20 @@ export default function App() {
           }}
           onClose={() => setShowSignatureModal(false)}
         />
+      )}
+
+      {/* Convert modals — image/word/excel export */}
+      {(activeModal === 'toimage' || activeModal === 'toword' || activeModal === 'toexcel') && (
+        <ConvertModal
+          pdfDoc={activeTab?.pdfDoc}
+          pdfName={activeTab?.name}
+          targetFormat={activeModal === 'toimage' ? 'image' : activeModal === 'toword' ? 'docx' : 'xlsx'}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'wordtopdf' && (
+        <WordToPDFModal onClose={() => setActiveModal(null)} />
       )}
 
       <Toolbar

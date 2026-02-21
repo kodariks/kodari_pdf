@@ -12,7 +12,12 @@ const TOOLS_MENU = [
   { id: 'pagenumbers', label: 'Add Page Numbers',  icon: '#',  desc: 'Number pages automatically' },
   { id: 'rearrange',   label: 'Rearrange Pages',   icon: '⇅',  desc: 'Reorder, delete, rotate pages' },
   'separator',
-  { id: 'imagetopdf',  label: 'Image to PDF',      icon: '🖼', desc: 'Convert JPEG/PNG to PDF' },
+  { id: 'imagetopdf',  label: 'Image to PDF',      icon: '🖼', desc: 'Convert JPEG/PNG to PDF'     },
+  { id: 'wordtopdf',   label: 'Word to PDF',        icon: '📄', desc: 'Convert .docx to PDF'        },
+  'separator',
+  { id: 'toimage',     label: 'PDF to Image',       icon: '🖼', desc: 'Export pages as JPEG/PNG'    },
+  { id: 'toword',      label: 'PDF to Word',        icon: '📝', desc: 'Export text as .docx'        },
+  { id: 'toexcel',     label: 'PDF to Excel',       icon: '📊', desc: 'Export tables as .xlsx'      },
 ];
 
 const ANNOTATION_COLORS = [
