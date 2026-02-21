@@ -8,6 +8,8 @@ import MergeModal from './components/MergeModal.jsx';
 import SplitModal from './components/SplitModal.jsx';
 import PageManagerModal from './components/PageManagerModal.jsx';
 import CompressModal from './components/CompressModal.jsx';
+import ProtectModal from './components/ProtectModal.jsx';
+import UnlockModal from './components/UnlockModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -325,6 +327,21 @@ export default function App() {
           pdfData={activeTab?.data}
           pdfName={activeTab?.name}
           pdfDoc={activeTab?.pdfDoc}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'protect' && (
+        <ProtectModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'unlock' && (
+        <UnlockModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          pdfPassword={activeTab?.password}
           onClose={() => setActiveModal(null)}
         />
       )}
