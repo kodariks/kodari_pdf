@@ -64,8 +64,11 @@ export default function Toolbar({
   onRotate,
   activeTool,
   annotationColor,
+  annotationFontSize,
   onToolChange,
   onColorChange,
+  onFontSizeChange,
+  onAddImageClick,
   onToolsAction,
 }) {
   const [pageInput,   setPageInput]   = useState('');
@@ -305,6 +308,46 @@ export default function Toolbar({
               <line x1="18" y1="12.41" x2="11.59" y2="6"/>
             </svg>
           </button>
+
+          {/* Add Text */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'add-text' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('add-text')}
+            title="Add Text (T)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+          </button>
+
+          {/* Add Image */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'add-image' ? 'tool-active' : ''}`}
+            onClick={() => onAddImageClick?.()}
+            title="Add Image"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </button>
+
+          {/* Font size (shown when add-text is active) */}
+          {activeTool === 'add-text' && (
+            <input
+              type="number"
+              min={8} max={72}
+              className="modal-input"
+              style={{ width: 52, padding: '2px 4px', fontSize: 12 }}
+              value={annotationFontSize || 14}
+              onChange={(e) => onFontSizeChange?.(Math.min(72, Math.max(8, parseInt(e.target.value) || 14)))}
+              title="Font size"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
 
           {/* Color picker */}
           <div className="ann-color-wrap" ref={colorRef}>

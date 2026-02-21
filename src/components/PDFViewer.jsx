@@ -28,7 +28,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 // ── Single page component ──────────────────────────────────────────────────
 function PageRenderer({
   pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible,
-  activeTool, annotationColor, annotations,
+  activeTool, annotationColor, annotationFontSize, pendingImage, annotations,
   onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
   annotationStorage,
 }) {
@@ -269,6 +269,8 @@ function PageRenderer({
         pageNum={pageNum}
         activeTool={activeTool}
         annotationColor={annotationColor}
+        annotationFontSize={annotationFontSize}
+        pendingImage={pendingImage}
         onAddAnnotation={onAddAnnotation}
         onUpdateAnnotation={onUpdateAnnotation}
         onDeleteAnnotation={onDeleteAnnotation}
@@ -318,6 +320,8 @@ export default function PDFViewer({
   darkMode,
   activeTool,
   annotationColor,
+  annotationFontSize,
+  pendingImage,
   onDocumentLoad,
   onPageChange,
   onPasswordNeeded,
@@ -482,6 +486,8 @@ export default function PDFViewer({
               isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 1}
               activeTool={activeTool || 'cursor'}
               annotationColor={annotationColor || '#FFEA00'}
+              annotationFontSize={annotationFontSize || 14}
+              pendingImage={pendingImage || null}
               annotations={getPageAnnotations(n)}
               onAddAnnotation={addAnnotation}
               onUpdateAnnotation={updateAnnotation}

@@ -1844,6 +1844,41 @@ html, body, #root {
   border-left: 3px solid var(--accent);
 }
 
+/* ── Text-box & Image overlay annotations ─────── */
+.text-box-editor {
+  background: rgba(255,255,200,0.9);
+  border: 1.5px dashed var(--accent);
+  border-radius: 2px;
+  padding: 3px 6px;
+  resize: both;
+  outline: none;
+  font-family: var(--font);
+  line-height: 1.4;
+  min-width: 80px;
+  min-height: 24px;
+  color: inherit;
+}
+.text-box-display {
+  padding: 2px 4px;
+  white-space: pre-wrap;
+  font-family: var(--font);
+  line-height: 1.4;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  min-width: 16px;
+  min-height: 16px;
+  transition: border-color 0.1s, background 0.1s;
+  user-select: none;
+}
+.text-box-display:hover {
+  border-color: rgba(100,100,255,0.5);
+  background: rgba(100,100,255,0.05);
+}
+.text-box-display.text-box-erase {
+  border-color: #ff4444 !important;
+  background: rgba(255,0,0,0.12) !important;
+}
+
 /* ── Image to PDF ─────────────────────────────── */
 .i2p-list {
   display: flex;

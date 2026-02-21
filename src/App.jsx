@@ -58,8 +58,11 @@ export default function App() {
   const [isFullscreen, setIsFullscreen]     = useState(false);
   const [activeTool, setActiveTool]         = useState('cursor');
   const [annotationColor, setAnnotationColor] = useState('#FFEA00');
+  const [annotationFontSize, setAnnotationFontSize] = useState(14);
+  const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
   const [activeAnnotations, setActiveAnnotations] = useState([]);
   const deleteAnnotationRef = useRef(null);
+  const imageInputRef = useRef(null);
 
   // ── Modal state ──
   const [activeModal, setActiveModal] = useState(null); // 'merge' | 'split' | etc.
@@ -247,11 +250,12 @@ export default function App() {
         case '0': zoomFit(); break;
         case 'F11': e.preventDefault(); handleFullscreen(); break;
         case 'r': rotateCW(); break;
-        case 'Escape': setActiveTool('cursor'); break;
+        case 'Escape': setActiveTool('cursor'); setPendingImage(null); break;
         case 'h': case 'H': setActiveTool('highlight'); break;
         case 'n': case 'N': setActiveTool('note'); break;
         case 'd': case 'D': setActiveTool('draw'); break;
         case 'e': case 'E': setActiveTool('eraser'); break;
+        case 't': case 'T': setActiveTool('add-text'); break;
         default: break;
       }
     }
@@ -259,15 +263,42 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
 
+  // ── Add Image handler ──
+  function handleAddImageClick() {
+    imageInputRef.current?.click();
+  }
+  function handleImageInput(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        setPendingImage({ dataURL: ev.target.result, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+        setActiveTool('add-image');
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
   return (
     <div className={`app ${darkMode ? 'dark' : 'light'}`}>
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".pdf,application/pdf"
         style={{ display: 'none' }}
         onChange={handleFileInput}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp"
+        style={{ display: 'none' }}
+        onChange={handleImageInput}
       />
 
       {/* Password dialog */}
@@ -397,8 +428,11 @@ export default function App() {
         onRotate={rotateCW}
         activeTool={activeTool}
         annotationColor={annotationColor}
-        onToolChange={setActiveTool}
+        annotationFontSize={annotationFontSize}
+        onToolChange={(tool) => { setActiveTool(tool); if (tool !== 'add-image') setPendingImage(null); }}
         onColorChange={setAnnotationColor}
+        onFontSizeChange={setAnnotationFontSize}
+        onAddImageClick={handleAddImageClick}
         onToolsAction={setActiveModal}
       />
 
@@ -453,6 +487,8 @@ export default function App() {
                 darkMode={darkMode}
                 activeTool={activeTool}
                 annotationColor={annotationColor}
+                annotationFontSize={annotationFontSize}
+                pendingImage={pendingImage}
                 onDocumentLoad={(n, doc) => {
                   updateTab(tab.id, { numPages: n, pdfDoc: doc || null });
                 }}
