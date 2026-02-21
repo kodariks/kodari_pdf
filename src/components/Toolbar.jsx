@@ -1,5 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 
+// ── Tools menu items ─────────────────────────────────────────────
+const TOOLS_MENU = [
+  { id: 'merge',       label: 'Merge Files',       icon: '⊕', desc: 'Combine multiple PDFs into one' },
+  { id: 'split',       label: 'Split File',        icon: '⊘', desc: 'Divide PDF into multiple files' },
+  { id: 'compress',    label: 'Compress',          icon: '⊙', desc: 'Reduce PDF file size' },
+  'separator',
+  { id: 'protect',     label: 'Protect PDF',       icon: '🔒', desc: 'Password-encrypt the PDF' },
+  { id: 'unlock',      label: 'Unlock PDF',        icon: '🔓', desc: 'Remove password protection' },
+  'separator',
+  { id: 'pagenumbers', label: 'Add Page Numbers',  icon: '#',  desc: 'Number pages automatically' },
+  { id: 'rearrange',   label: 'Rearrange Pages',   icon: '⇅',  desc: 'Reorder, delete, rotate pages' },
+  'separator',
+  { id: 'imagetopdf',  label: 'Image to PDF',      icon: '🖼', desc: 'Convert JPEG/PNG to PDF' },
+];
+
 const ANNOTATION_COLORS = [
   '#FFEA00', // yellow
   '#76FF03', // green
@@ -51,13 +66,16 @@ export default function Toolbar({
   annotationColor,
   onToolChange,
   onColorChange,
+  onToolsAction,
 }) {
   const [pageInput,   setPageInput]   = useState('');
   const [zoomOpen,    setZoomOpen]    = useState(false);
   const [colorOpen,   setColorOpen]   = useState(false);
-  const zoomRef = useRef(null);
+  const [toolsOpen,   setToolsOpen]   = useState(false);
+  const zoomRef   = useRef(null);
   const searchRef = useRef(null);
-  const colorRef = useRef(null);
+  const colorRef  = useRef(null);
+  const toolsRef  = useRef(null);
 
   // Close zoom dropdown on outside click
   useEffect(() => {
@@ -78,6 +96,16 @@ export default function Toolbar({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [colorOpen]);
+
+  // Close tools menu on outside click
+  useEffect(() => {
+    if (!toolsOpen) return;
+    function handler(e) {
+      if (toolsRef.current && !toolsRef.current.contains(e.target)) setToolsOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [toolsOpen]);
 
   // Ctrl+F focuses search
   useEffect(() => {
@@ -126,6 +154,42 @@ export default function Toolbar({
           </svg>
           Open PDF
         </button>
+
+        {/* Tools dropdown */}
+        <div className="tools-menu-wrap" ref={toolsRef}>
+          <button
+            className="tb-btn icon-btn"
+            title="PDF Tools"
+            onClick={() => setToolsOpen((o) => !o)}
+            aria-label="PDF Tools menu"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="5"  r="1" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            Tools ▾
+          </button>
+          {toolsOpen && (
+            <div className="tools-menu">
+              {TOOLS_MENU.map((item, i) =>
+                item === 'separator'
+                  ? <div key={i} className="tools-menu-separator" />
+                  : (
+                    <button
+                      key={item.id}
+                      className="tools-menu-item"
+                      onClick={() => { setToolsOpen(false); onToolsAction?.(item.id); }}
+                      title={item.desc}
+                    >
+                      <span style={{ fontSize: 16, minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  )
+              )}
+            </div>
+          )}
+        </div>
 
         {pdfName && (
           <span className="pdf-name" title={pdfName}>

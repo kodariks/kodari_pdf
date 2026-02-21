@@ -4,6 +4,7 @@ import Toolbar from './components/Toolbar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DropZone from './components/DropZone.jsx';
 import TabBar from './components/TabBar.jsx';
+import MergeModal from './components/MergeModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -52,6 +53,9 @@ export default function App() {
   const [annotationColor, setAnnotationColor] = useState('#FFEA00');
   const [activeAnnotations, setActiveAnnotations] = useState([]);
   const deleteAnnotationRef = useRef(null);
+
+  // ── Modal state ──
+  const [activeModal, setActiveModal] = useState(null); // 'merge' | 'split' | etc.
 
   const fileInputRef = useRef(null);
 
@@ -306,6 +310,11 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Feature Modals ── */}
+      {activeModal === 'merge' && (
+        <MergeModal onClose={() => setActiveModal(null)} />
+      )}
+
       <Toolbar
         pdfName={activeTab?.name}
         currentPage={activeTab?.currentPage || 1}
@@ -336,6 +345,7 @@ export default function App() {
         annotationColor={annotationColor}
         onToolChange={setActiveTool}
         onColorChange={setAnnotationColor}
+        onToolsAction={setActiveModal}
       />
 
       {tabs.length > 0 && (
