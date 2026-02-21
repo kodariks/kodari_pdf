@@ -1844,6 +1844,61 @@ html, body, #root {
   border-left: 3px solid var(--accent);
 }
 
+/* ── Signature modal ──────────────────────────── */
+.sig-font-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 18px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.sig-font-btn:hover { background: var(--btn-h); }
+.sig-font-btn.active {
+  border-color: var(--accent);
+  background: rgba(230,57,70,0.1);
+}
+.sig-preview-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 20px;
+  font-size: 48px;
+  text-align: center;
+  color: var(--text);
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.sig-canvas-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  overflow: hidden;
+}
+.sig-canvas {
+  display: block;
+  width: 100%;
+  height: 130px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.sig-canvas-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  color: #aaa;
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ── Text-box & Image overlay annotations ─────── */
 .text-box-editor {
   background: rgba(255,255,200,0.9);

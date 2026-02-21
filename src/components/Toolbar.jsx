@@ -69,6 +69,7 @@ export default function Toolbar({
   onColorChange,
   onFontSizeChange,
   onAddImageClick,
+  onSignClick,
   onToolsAction,
 }) {
   const [pageInput,   setPageInput]   = useState('');
@@ -332,6 +333,18 @@ export default function Toolbar({
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </button>
+
+          {/* Sign Document */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={() => onSignClick?.()}
+            title="Sign Document"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 19.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8.5L18 5.5"/>
+              <path d="M8 17.37l1.68-5.06 8.84-8.84a1.5 1.5 0 0 1 2.12 2.12L11.8 14.43z"/>
             </svg>
           </button>
 

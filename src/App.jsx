@@ -12,6 +12,7 @@ import ProtectModal from './components/ProtectModal.jsx';
 import UnlockModal from './components/UnlockModal.jsx';
 import PageNumbersModal from './components/PageNumbersModal.jsx';
 import ImageToPDFModal from './components/ImageToPDFModal.jsx';
+import SignatureModal from './components/SignatureModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -60,6 +61,7 @@ export default function App() {
   const [annotationColor, setAnnotationColor] = useState('#FFEA00');
   const [annotationFontSize, setAnnotationFontSize] = useState(14);
   const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
   const deleteAnnotationRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -400,6 +402,21 @@ export default function App() {
         <ImageToPDFModal onClose={() => setActiveModal(null)} />
       )}
 
+      {showSignatureModal && (
+        <SignatureModal
+          onConfirm={(sig) => {
+            const img = new Image();
+            img.onload = () => {
+              setPendingImage({ dataURL: sig.dataURL, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+              setActiveTool('add-image');
+            };
+            img.src = sig.dataURL;
+            setShowSignatureModal(false);
+          }}
+          onClose={() => setShowSignatureModal(false)}
+        />
+      )}
+
       <Toolbar
         pdfName={activeTab?.name}
         currentPage={activeTab?.currentPage || 1}
@@ -433,6 +450,7 @@ export default function App() {
         onColorChange={setAnnotationColor}
         onFontSizeChange={setAnnotationFontSize}
         onAddImageClick={handleAddImageClick}
+        onSignClick={() => setShowSignatureModal(true)}
         onToolsAction={setActiveModal}
       />
 
