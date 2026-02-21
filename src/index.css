@@ -1844,6 +1844,47 @@ html, body, #root {
   border-left: 3px solid var(--accent);
 }
 
+/* ── Image to PDF ─────────────────────────────── */
+.i2p-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 8px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+}
+.i2p-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: var(--surface2);
+  border: 1px solid transparent;
+  cursor: grab;
+  transition: background 0.15s, border-color 0.15s;
+}
+.i2p-row:hover { background: var(--btn-h); }
+.i2p-row.drag-over { border-color: var(--accent); background: var(--btn-h); }
+.i2p-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+}
+.i2p-name {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Responsive ──────────────────────────────── */
 @media (max-width: 700px) {
   :root { --sidebar-w: 150px; }
