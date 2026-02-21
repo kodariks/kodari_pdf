@@ -1,36 +1,43 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 const STORAGE_PREFIX = 'kodari_annotations_';
+const MAX_HISTORY    = 50;
 
 function storageKey(pdfName) {
   return STORAGE_PREFIX + pdfName;
 }
 
 /**
- * Custom hook for managing PDF annotations with localStorage persistence.
+ * Custom hook for managing PDF annotations with localStorage persistence
+ * and a full undo / redo history stack (up to MAX_HISTORY entries).
+ *
  * Each PDFViewer instance calls this with its own pdfName.
  */
 export function useAnnotations(pdfName) {
-  const [annotations, setAnnotations] = useState([]);
+  // History stack: { past: [], present: [], future: [] }
+  const [history, setHistory] = useState({ past: [], present: [], future: [] });
   const loaded = useRef(false);
 
-  // Load annotations when pdfName changes
+  const annotations = history.present;
+
+  // ── Load ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!pdfName) {
-      setAnnotations([]);
+      setHistory({ past: [], present: [], future: [] });
       loaded.current = false;
       return;
     }
     try {
-      const raw = localStorage.getItem(storageKey(pdfName));
-      setAnnotations(raw ? JSON.parse(raw) : []);
+      const raw  = localStorage.getItem(storageKey(pdfName));
+      const saved = raw ? JSON.parse(raw) : [];
+      setHistory({ past: [], present: saved, future: [] });
     } catch {
-      setAnnotations([]);
+      setHistory({ past: [], present: [], future: [] });
     }
     loaded.current = true;
   }, [pdfName]);
 
-  // Debounced save to localStorage whenever annotations change
+  // ── Debounced save ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!pdfName || !loaded.current) return;
     const timer = setTimeout(() => {
@@ -43,22 +50,32 @@ export function useAnnotations(pdfName) {
     return () => clearTimeout(timer);
   }, [annotations, pdfName]);
 
+  // ── Mutate helper: push present to past, clear future ─────────────────────
+  function mutate(updater) {
+    setHistory((prev) => ({
+      past:    [...prev.past.slice(-MAX_HISTORY), prev.present],
+      present: updater(prev.present),
+      future:  [],
+    }));
+  }
+
+  // ── CRUD ──────────────────────────────────────────────────────────────────
   const addAnnotation = useCallback((partial) => {
     const ann = {
       ...partial,
-      id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+      id:        crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
       createdAt: Date.now(),
     };
-    setAnnotations((prev) => [...prev, ann]);
+    mutate((prev) => [...prev, ann]);
     return ann;
   }, []);
 
   const updateAnnotation = useCallback((id, patch) => {
-    setAnnotations((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    mutate((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
   }, []);
 
   const deleteAnnotation = useCallback((id) => {
-    setAnnotations((prev) => prev.filter((a) => a.id !== id));
+    mutate((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
   const getPageAnnotations = useCallback(
@@ -66,11 +83,44 @@ export function useAnnotations(pdfName) {
     [annotations]
   );
 
+  // ── Undo / Redo ───────────────────────────────────────────────────────────
+  const undo = useCallback(() => {
+    setHistory((prev) => {
+      if (!prev.past.length) return prev;
+      const newPast    = prev.past.slice(0, -1);
+      const newPresent = prev.past[prev.past.length - 1];
+      return {
+        past:    newPast,
+        present: newPresent,
+        future:  [prev.present, ...prev.future.slice(0, MAX_HISTORY - 1)],
+      };
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistory((prev) => {
+      if (!prev.future.length) return prev;
+      const [newPresent, ...newFuture] = prev.future;
+      return {
+        past:    [...prev.past.slice(-MAX_HISTORY), prev.present],
+        present: newPresent,
+        future:  newFuture,
+      };
+    });
+  }, []);
+
+  const canUndo = history.past.length   > 0;
+  const canRedo = history.future.length > 0;
+
   return {
     annotations,
     addAnnotation,
     updateAnnotation,
     deleteAnnotation,
     getPageAnnotations,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   };
 }

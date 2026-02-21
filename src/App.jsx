@@ -61,11 +61,16 @@ export default function App() {
   const [activeTool, setActiveTool]         = useState('cursor');
   const [annotationColor, setAnnotationColor] = useState('#FFEA00');
   const [annotationFontSize, setAnnotationFontSize] = useState(14);
+  const [strokeWidth, setStrokeWidth]       = useState(2);
   const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
   const deleteAnnotationRef = useRef(null);
-  const imageInputRef = useRef(null);
+  const imageInputRef    = useRef(null);
+  const undoRef          = useRef(null);
+  const redoRef          = useRef(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
 
   // ── Modal state ──
   const [activeModal, setActiveModal] = useState(null); // 'merge' | 'split' | etc.
@@ -236,6 +241,17 @@ export default function App() {
   // ── Keyboard shortcuts ──
   useEffect(() => {
     function onKey(e) {
+      // Ctrl+Z / Ctrl+Y — undo/redo (works even without activeTab)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoRef.current?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redoRef.current?.();
+        return;
+      }
       if (!activeTab) return;
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -264,7 +280,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeTab]);
+  }, [activeTab, canUndo, canRedo]);
 
   // ── Export annotated PDF ──
   async function handleExportPDF() {
@@ -457,9 +473,15 @@ export default function App() {
         activeTool={activeTool}
         annotationColor={annotationColor}
         annotationFontSize={annotationFontSize}
+        strokeWidth={strokeWidth}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onToolChange={(tool) => { setActiveTool(tool); if (tool !== 'add-image') setPendingImage(null); }}
         onColorChange={setAnnotationColor}
         onFontSizeChange={setAnnotationFontSize}
+        onStrokeWidthChange={setStrokeWidth}
+        onUndo={() => undoRef.current?.()}
+        onRedo={() => redoRef.current?.()}
         onAddImageClick={handleAddImageClick}
         onSignClick={() => setShowSignatureModal(true)}
         onExportPDF={handleExportPDF}
@@ -518,7 +540,16 @@ export default function App() {
                 activeTool={activeTool}
                 annotationColor={annotationColor}
                 annotationFontSize={annotationFontSize}
+                strokeWidth={strokeWidth}
                 pendingImage={pendingImage}
+                onHistoryReady={(h) => {
+                  if (tab.id === activeTabId) {
+                    undoRef.current = h.undo;
+                    redoRef.current = h.redo;
+                    setCanUndo(h.canUndo);
+                    setCanRedo(h.canRedo);
+                  }
+                }}
                 onDocumentLoad={(n, doc) => {
                   updateTab(tab.id, { numPages: n, pdfDoc: doc || null });
                 }}

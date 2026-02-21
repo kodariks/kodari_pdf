@@ -65,9 +65,15 @@ export default function Toolbar({
   activeTool,
   annotationColor,
   annotationFontSize,
+  strokeWidth,
+  canUndo,
+  canRedo,
   onToolChange,
   onColorChange,
   onFontSizeChange,
+  onStrokeWidthChange,
+  onUndo,
+  onRedo,
   onAddImageClick,
   onSignClick,
   onExportPDF,
@@ -250,6 +256,34 @@ export default function Toolbar({
       {/* ── Annotation tools ──────────────────────── */}
       {numPages > 0 && onToolChange && (
         <div className="tb-group tb-annotations">
+          {/* Undo */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 14 4 9 9 4"/>
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+            </svg>
+          </button>
+
+          {/* Redo */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15 14 20 9 15 4"/>
+              <path d="M4 20v-7a4 4 0 0 1 4-4h12"/>
+            </svg>
+          </button>
+
+          <div className="tb-divider" />
+
           {/* Cursor (default) */}
           <button
             className={`tb-btn icon-btn ${activeTool === 'cursor' ? 'tool-active' : ''}`}
@@ -298,6 +332,23 @@ export default function Toolbar({
               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
             </svg>
           </button>
+
+          {/* Line width (shown when draw is active) */}
+          {activeTool === 'draw' && (
+            <select
+              className="modal-input"
+              style={{ width: 54, padding: '2px 4px', fontSize: 12 }}
+              value={strokeWidth || 2}
+              onChange={(e) => onStrokeWidthChange?.(Number(e.target.value))}
+              title="Stroke width"
+            >
+              <option value={1}>1px</option>
+              <option value={2}>2px</option>
+              <option value={4}>4px</option>
+              <option value={6}>6px</option>
+              <option value={10}>10px</option>
+            </select>
+          )}
 
           {/* Eraser */}
           <button

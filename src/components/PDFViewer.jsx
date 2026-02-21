@@ -28,7 +28,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 // ── Single page component ──────────────────────────────────────────────────
 function PageRenderer({
   pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible,
-  activeTool, annotationColor, annotationFontSize, pendingImage, annotations,
+  activeTool, annotationColor, annotationFontSize, strokeWidth, pendingImage, annotations,
   onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
   annotationStorage,
 }) {
@@ -270,6 +270,7 @@ function PageRenderer({
         activeTool={activeTool}
         annotationColor={annotationColor}
         annotationFontSize={annotationFontSize}
+        strokeWidth={strokeWidth}
         pendingImage={pendingImage}
         onAddAnnotation={onAddAnnotation}
         onUpdateAnnotation={onUpdateAnnotation}
@@ -321,12 +322,14 @@ export default function PDFViewer({
   activeTool,
   annotationColor,
   annotationFontSize,
+  strokeWidth,
   pendingImage,
   onDocumentLoad,
   onPageChange,
   onPasswordNeeded,
   onSearchResults,
   onAnnotationsChange,
+  onHistoryReady,
 }) {
   const containerRef  = useRef(null);
   const [pdf, setPdf] = useState(null);
@@ -344,6 +347,10 @@ export default function PDFViewer({
     updateAnnotation,
     deleteAnnotation,
     getPageAnnotations,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useAnnotations(pdfName);
 
   // ── Form data (AnnotationStorage for pdfjs form fields) ──
@@ -354,6 +361,11 @@ export default function PDFViewer({
   useEffect(() => {
     if (onAnnotationsChange) onAnnotationsChange(annotations, deleteAnnotation);
   }, [annotations]);
+
+  // Expose undo/redo to parent
+  useEffect(() => {
+    if (onHistoryReady) onHistoryReady({ undo, redo, canUndo, canRedo });
+  }, [undo, redo, canUndo, canRedo]);
 
   // ── Load document ──
   useEffect(() => {
@@ -487,6 +499,7 @@ export default function PDFViewer({
               activeTool={activeTool || 'cursor'}
               annotationColor={annotationColor || '#FFEA00'}
               annotationFontSize={annotationFontSize || 14}
+              strokeWidth={strokeWidth || 2}
               pendingImage={pendingImage || null}
               annotations={getPageAnnotations(n)}
               onAddAnnotation={addAnnotation}

@@ -1844,6 +1844,16 @@ html, body, #root {
   border-left: 3px solid var(--accent);
 }
 
+/* ── Toolbar divider ──────────────────────────── */
+.tb-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 2px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* ── Signature modal ──────────────────────────── */
 .sig-font-btn {
   padding: 6px 14px;

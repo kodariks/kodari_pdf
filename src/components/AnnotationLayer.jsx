@@ -13,6 +13,7 @@ export default function AnnotationLayer({
   activeTool,
   annotationColor,
   annotationFontSize,
+  strokeWidth,
   pendingImage,         // { dataURL, naturalW, naturalH } for add-image tool
   onAddAnnotation,
   onUpdateAnnotation,
@@ -42,7 +43,7 @@ export default function AnnotationLayer({
   function handlePointerDown(e) {
     if (activeTool === 'draw') {
       const pos = getPointerPos(e);
-      setCurrentStroke({ points: [pos], color: annotationColor, strokeWidth: 2 });
+      setCurrentStroke({ points: [pos], color: annotationColor, strokeWidth: strokeWidth || 2 });
       e.currentTarget.setPointerCapture(e.pointerId);
 
     } else if (activeTool === 'note') {
@@ -93,7 +94,7 @@ export default function AnnotationLayer({
       const pdfPoints = currentStroke.points.map((p) => viewportToPdf(p.x, p.y, viewport));
       onAddAnnotation({
         type: 'drawing', page: pageNum,
-        color: currentStroke.color, strokeWidth: 2,
+        color: currentStroke.color, strokeWidth: currentStroke.strokeWidth || 2,
         points: pdfPoints,
       });
     }
