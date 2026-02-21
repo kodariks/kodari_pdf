@@ -559,6 +559,12 @@ html, body, #root {
   justify-content: center;
 }
 
+.page-row-double {
+  flex-direction: row;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .page-wrapper {
   position: relative;
   box-shadow: 0 4px 32px rgba(0,0,0,0.45);
