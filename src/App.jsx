@@ -13,6 +13,7 @@ import UnlockModal from './components/UnlockModal.jsx';
 import PageNumbersModal from './components/PageNumbersModal.jsx';
 import ImageToPDFModal from './components/ImageToPDFModal.jsx';
 import SignatureModal from './components/SignatureModal.jsx';
+import { exportAnnotatedPDF } from './utils/exportPDF.js';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -265,6 +266,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [activeTab]);
 
+  // ── Export annotated PDF ──
+  async function handleExportPDF() {
+    if (!activeTab?.data) return;
+    try {
+      await exportAnnotatedPDF(activeTab.data, activeTab.name || 'document', activeAnnotations);
+    } catch (e) {
+      setError('Export failed: ' + e.message);
+    }
+  }
+
   // ── Add Image handler ──
   function handleAddImageClick() {
     imageInputRef.current?.click();
@@ -451,6 +462,7 @@ export default function App() {
         onFontSizeChange={setAnnotationFontSize}
         onAddImageClick={handleAddImageClick}
         onSignClick={() => setShowSignatureModal(true)}
+        onExportPDF={handleExportPDF}
         onToolsAction={setActiveModal}
       />
 

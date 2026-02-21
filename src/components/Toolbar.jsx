@@ -70,6 +70,7 @@ export default function Toolbar({
   onFontSizeChange,
   onAddImageClick,
   onSignClick,
+  onExportPDF,
   onToolsAction,
 }) {
   const [pageInput,   setPageInput]   = useState('');
@@ -476,6 +477,19 @@ export default function Toolbar({
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="23 4 23 10 17 10"/>
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+
+            {/* Export annotated PDF */}
+            <button
+              className="tb-btn icon-btn"
+              onClick={onExportPDF}
+              title="Export PDF with annotations"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
             </button>
 
