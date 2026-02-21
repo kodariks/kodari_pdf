@@ -1539,6 +1539,89 @@ html, body, #root {
   margin: 4px 0;
 }
 
+/* ── Page Manager Modal ──────────────────────── */
+.pm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pm-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 0;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.pm-page-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--surface2);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: grab;
+  width: 140px;
+  flex-shrink: 0;
+  transition: border-color var(--transition), opacity var(--transition), box-shadow var(--transition);
+  user-select: none;
+}
+.pm-page-card:hover       { border-color: var(--muted); }
+.pm-page-card.selected    { border-color: var(--accent); background: rgba(230,57,70,0.08); }
+.pm-page-card.dragging    { opacity: 0.4; }
+.pm-page-card.drag-target { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(230,57,70,0.25); }
+
+.pm-thumb {
+  width: 100%;
+  background: #fff;
+  border-radius: 3px;
+  overflow: hidden;
+  transition: transform 0.2s ease;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pm-page-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pm-card-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.pm-action-btn {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--btn);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition), color var(--transition);
+  padding: 0;
+}
+.pm-action-btn:hover         { background: var(--btn-h); }
+.pm-action-btn:disabled      { opacity: 0.3; cursor: default; }
+.pm-action-btn.danger        { color: var(--accent); }
+.pm-action-btn.danger:hover  { background: rgba(230,57,70,0.15); }
+
 /* ── Split Modal ─────────────────────────────── */
 .split-file-info {
   display: flex;

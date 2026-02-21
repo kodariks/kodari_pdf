@@ -6,6 +6,7 @@ import DropZone from './components/DropZone.jsx';
 import TabBar from './components/TabBar.jsx';
 import MergeModal from './components/MergeModal.jsx';
 import SplitModal from './components/SplitModal.jsx';
+import PageManagerModal from './components/PageManagerModal.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -317,6 +318,17 @@ export default function App() {
       )}
       {activeModal === 'split' && (
         <SplitModal onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'rearrange' && (
+        <PageManagerModal
+          pdfData={activeTab?.data}
+          pdfDoc={activeTab?.pdfDoc}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+          onApply={(newBytes) => {
+            if (activeTabId) updateTab(activeTabId, { data: newBytes });
+          }}
+        />
       )}
 
       <Toolbar
