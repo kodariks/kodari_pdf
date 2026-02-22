@@ -1,5 +1,36 @@
 import { useState, useRef, useEffect } from 'react';
 
+// ── Tools menu items ─────────────────────────────────────────────
+const TOOLS_MENU = [
+  { id: 'merge',       label: 'Merge Files',       icon: '⊕', desc: 'Combine multiple PDFs into one' },
+  { id: 'split',       label: 'Split File',        icon: '⊘', desc: 'Divide PDF into multiple files' },
+  { id: 'compress',    label: 'Compress',          icon: '⊙', desc: 'Reduce PDF file size' },
+  'separator',
+  { id: 'protect',     label: 'Protect PDF',       icon: '🔒', desc: 'Password-encrypt the PDF' },
+  { id: 'unlock',      label: 'Unlock PDF',        icon: '🔓', desc: 'Remove password protection' },
+  'separator',
+  { id: 'pagenumbers', label: 'Add Page Numbers',  icon: '#',  desc: 'Number pages automatically' },
+  { id: 'rearrange',   label: 'Rearrange Pages',   icon: '⇅',  desc: 'Reorder, delete, rotate pages' },
+  'separator',
+  { id: 'imagetopdf',  label: 'Image to PDF',      icon: '🖼', desc: 'Convert JPEG/PNG to PDF'     },
+  { id: 'wordtopdf',   label: 'Word to PDF',        icon: '📄', desc: 'Convert .docx to PDF'        },
+  'separator',
+  { id: 'toimage',     label: 'PDF to Image',       icon: '🖼', desc: 'Export pages as JPEG/PNG'    },
+  { id: 'toword',      label: 'PDF to Word',        icon: '📝', desc: 'Export text as .docx'        },
+  { id: 'toexcel',     label: 'PDF to Excel',       icon: '📊', desc: 'Export tables as .xlsx'      },
+  'separator',
+  { id: 'compare',     label: 'Compare PDFs',       icon: '⇔',  desc: 'View two PDFs side by side'  },
+];
+
+const ANNOTATION_COLORS = [
+  '#FFEA00', // yellow
+  '#76FF03', // green
+  '#00E5FF', // cyan
+  '#FF6E40', // orange
+  '#E040FB', // purple
+  '#FF1744', // red
+];
+
 const ZOOM_PRESETS = [
   { label: '50%',   value: 0.5  },
   { label: '75%',   value: 0.75 },
@@ -38,11 +69,33 @@ export default function Toolbar({
   onPrint,
   onFullscreen,
   onRotate,
+  activeTool,
+  annotationColor,
+  annotationFontSize,
+  strokeWidth,
+  canUndo,
+  canRedo,
+  onToolChange,
+  onColorChange,
+  onFontSizeChange,
+  onStrokeWidthChange,
+  onUndo,
+  onRedo,
+  onAddImageClick,
+  onSignClick,
+  onExportPDF,
+  viewMode,
+  onViewModeChange,
+  onToolsAction,
 }) {
   const [pageInput,   setPageInput]   = useState('');
   const [zoomOpen,    setZoomOpen]    = useState(false);
-  const zoomRef = useRef(null);
+  const [colorOpen,   setColorOpen]   = useState(false);
+  const [toolsOpen,   setToolsOpen]   = useState(false);
+  const zoomRef   = useRef(null);
   const searchRef = useRef(null);
+  const colorRef  = useRef(null);
+  const toolsRef  = useRef(null);
 
   // Close zoom dropdown on outside click
   useEffect(() => {
@@ -53,6 +106,26 @@ export default function Toolbar({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [zoomOpen]);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    if (!colorOpen) return;
+    function handler(e) {
+      if (colorRef.current && !colorRef.current.contains(e.target)) setColorOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorOpen]);
+
+  // Close tools menu on outside click
+  useEffect(() => {
+    if (!toolsOpen) return;
+    function handler(e) {
+      if (toolsRef.current && !toolsRef.current.contains(e.target)) setToolsOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [toolsOpen]);
 
   // Ctrl+F focuses search
   useEffect(() => {
@@ -102,6 +175,42 @@ export default function Toolbar({
           Open PDF
         </button>
 
+        {/* Tools dropdown */}
+        <div className="tools-menu-wrap" ref={toolsRef}>
+          <button
+            className="tb-btn icon-btn"
+            title="PDF Tools"
+            onClick={() => setToolsOpen((o) => !o)}
+            aria-label="PDF Tools menu"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="5"  r="1" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>
+              <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>
+            </svg>
+            Tools ▾
+          </button>
+          {toolsOpen && (
+            <div className="tools-menu">
+              {TOOLS_MENU.map((item, i) =>
+                item === 'separator'
+                  ? <div key={i} className="tools-menu-separator" />
+                  : (
+                    <button
+                      key={item.id}
+                      className="tools-menu-item"
+                      onClick={() => { setToolsOpen(false); onToolsAction?.(item.id); }}
+                      title={item.desc}
+                    >
+                      <span style={{ fontSize: 16, minWidth: 20, textAlign: 'center' }}>{item.icon}</span>
+                      {item.label}
+                    </button>
+                  )
+              )}
+            </div>
+          )}
+        </div>
+
         {pdfName && (
           <span className="pdf-name" title={pdfName}>
             {pdfName.length > 32 ? '…' + pdfName.slice(-30) : pdfName}
@@ -150,6 +259,193 @@ export default function Toolbar({
               <polyline points="9 18 15 12 9 6" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* ── Annotation tools ──────────────────────── */}
+      {numPages > 0 && onToolChange && (
+        <div className="tb-group tb-annotations">
+          {/* Undo */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 14 4 9 9 4"/>
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+            </svg>
+          </button>
+
+          {/* Redo */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15 14 20 9 15 4"/>
+              <path d="M4 20v-7a4 4 0 0 1 4-4h12"/>
+            </svg>
+          </button>
+
+          <div className="tb-divider" />
+
+          {/* Cursor (default) */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'cursor' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('cursor')}
+            title="Select / Cursor (Esc)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+              <path d="M13 13l6 6"/>
+            </svg>
+          </button>
+
+          {/* Highlight */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'highlight' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('highlight')}
+            title="Highlight text (H)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            </svg>
+          </button>
+
+          {/* Sticky note */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'note' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('note')}
+            title="Sticky note (N)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </button>
+
+          {/* Freehand draw */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'draw' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('draw')}
+            title="Freehand draw (D)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+          </button>
+
+          {/* Line width (shown when draw is active) */}
+          {activeTool === 'draw' && (
+            <select
+              className="modal-input"
+              style={{ width: 54, padding: '2px 4px', fontSize: 12 }}
+              value={strokeWidth || 2}
+              onChange={(e) => onStrokeWidthChange?.(Number(e.target.value))}
+              title="Stroke width"
+            >
+              <option value={1}>1px</option>
+              <option value={2}>2px</option>
+              <option value={4}>4px</option>
+              <option value={6}>6px</option>
+              <option value={10}>10px</option>
+            </select>
+          )}
+
+          {/* Eraser */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'eraser' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('eraser')}
+            title="Eraser (E)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 20H7L3 16a1 1 0 0 1 0-1.41l9.59-9.59a2 2 0 0 1 2.83 0L20 9.59a2 2 0 0 1 0 2.83L12.42 20"/>
+              <line x1="18" y1="12.41" x2="11.59" y2="6"/>
+            </svg>
+          </button>
+
+          {/* Add Text */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'add-text' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('add-text')}
+            title="Add Text (T)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+          </button>
+
+          {/* Add Image */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'add-image' ? 'tool-active' : ''}`}
+            onClick={() => onAddImageClick?.()}
+            title="Add Image"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </button>
+
+          {/* Sign Document */}
+          <button
+            className="tb-btn icon-btn"
+            onClick={() => onSignClick?.()}
+            title="Sign Document"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 19.5v.5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8.5L18 5.5"/>
+              <path d="M8 17.37l1.68-5.06 8.84-8.84a1.5 1.5 0 0 1 2.12 2.12L11.8 14.43z"/>
+            </svg>
+          </button>
+
+          {/* Font size (shown when add-text is active) */}
+          {activeTool === 'add-text' && (
+            <input
+              type="number"
+              min={8} max={72}
+              className="modal-input"
+              style={{ width: 52, padding: '2px 4px', fontSize: 12 }}
+              value={annotationFontSize || 14}
+              onChange={(e) => onFontSizeChange?.(Math.min(72, Math.max(8, parseInt(e.target.value) || 14)))}
+              title="Font size"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
+          {/* Color picker */}
+          <div className="ann-color-wrap" ref={colorRef}>
+            <button
+              className="tb-btn icon-btn ann-color-btn"
+              onClick={() => setColorOpen((o) => !o)}
+              title="Annotation color"
+            >
+              <span className="ann-color-dot" style={{ background: annotationColor || '#FFEA00' }} />
+            </button>
+            {colorOpen && (
+              <div className="ann-color-picker">
+                {ANNOTATION_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={`ann-color-swatch ${c === annotationColor ? 'active' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => { onColorChange(c); setColorOpen(false); }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -244,12 +540,37 @@ export default function Toolbar({
               </svg>
             </button>
 
+            {/* Export annotated PDF */}
+            <button
+              className="tb-btn icon-btn"
+              onClick={onExportPDF}
+              title="Export PDF with annotations"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+            </button>
+
             {/* Print */}
             <button className="tb-btn icon-btn" onClick={onPrint} title="Print (Ctrl+P)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polyline points="6 9 6 2 18 2 18 9"/>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
                 <rect x="6" y="14" width="12" height="8"/>
+              </svg>
+            </button>
+
+            {/* Two-page / Side-by-side view */}
+            <button
+              className={`tb-btn icon-btn${viewMode === 'double' ? ' active' : ''}`}
+              onClick={() => onViewModeChange(viewMode === 'double' ? 'single' : 'double')}
+              title={viewMode === 'double' ? 'Single page view' : 'Two-page spread view'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="1"  y="3" width="9" height="18" rx="1"/>
+                <rect x="14" y="3" width="9" height="18" rx="1"/>
               </svg>
             </button>
 

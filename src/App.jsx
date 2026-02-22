@@ -4,6 +4,19 @@ import Toolbar from './components/Toolbar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DropZone from './components/DropZone.jsx';
 import TabBar from './components/TabBar.jsx';
+import MergeModal from './components/MergeModal.jsx';
+import SplitModal from './components/SplitModal.jsx';
+import PageManagerModal from './components/PageManagerModal.jsx';
+import CompressModal from './components/CompressModal.jsx';
+import ProtectModal from './components/ProtectModal.jsx';
+import UnlockModal from './components/UnlockModal.jsx';
+import PageNumbersModal from './components/PageNumbersModal.jsx';
+import ImageToPDFModal from './components/ImageToPDFModal.jsx';
+import SignatureModal from './components/SignatureModal.jsx';
+import ConvertModal from './components/ConvertModal.jsx';
+import WordToPDFModal from './components/WordToPDFModal.jsx';
+import CompareView from './components/CompareView.jsx';
+import { exportAnnotatedPDF } from './utils/exportPDF.js';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -48,6 +61,26 @@ export default function App() {
   const [passwordInput, setPasswordInput]   = useState('');
   const [recentFiles, setRecentFiles]       = useState(loadRecent);
   const [isFullscreen, setIsFullscreen]     = useState(false);
+  const [activeTool, setActiveTool]         = useState('cursor');
+  const [annotationColor, setAnnotationColor] = useState('#FFEA00');
+  const [annotationFontSize, setAnnotationFontSize] = useState(14);
+  const [strokeWidth, setStrokeWidth]       = useState(2);
+  const [viewMode, setViewMode]             = useState('single'); // 'single' | 'double'
+  const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [activeAnnotations, setActiveAnnotations] = useState([]);
+  const deleteAnnotationRef = useRef(null);
+  const imageInputRef    = useRef(null);
+  const undoRef          = useRef(null);
+  const redoRef          = useRef(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  // ── Modal state ──
+  const [activeModal, setActiveModal] = useState(null); // 'merge' | 'split' | etc.
+
+  // ── Compare mode ──
+  const [compareMode, setCompareMode] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -215,6 +248,17 @@ export default function App() {
   // ── Keyboard shortcuts ──
   useEffect(() => {
     function onKey(e) {
+      // Ctrl+Z / Ctrl+Y — undo/redo (works even without activeTab)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undoRef.current?.();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redoRef.current?.();
+        return;
+      }
       if (!activeTab) return;
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
@@ -232,22 +276,65 @@ export default function App() {
         case '0': zoomFit(); break;
         case 'F11': e.preventDefault(); handleFullscreen(); break;
         case 'r': rotateCW(); break;
+        case 'Escape': setActiveTool('cursor'); setPendingImage(null); break;
+        case 'h': case 'H': setActiveTool('highlight'); break;
+        case 'n': case 'N': setActiveTool('note'); break;
+        case 'd': case 'D': setActiveTool('draw'); break;
+        case 'e': case 'E': setActiveTool('eraser'); break;
+        case 't': case 'T': setActiveTool('add-text'); break;
         default: break;
       }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [activeTab]);
+  }, [activeTab, canUndo, canRedo]);
+
+  // ── Export annotated PDF ──
+  async function handleExportPDF() {
+    if (!activeTab?.data) return;
+    try {
+      await exportAnnotatedPDF(activeTab.data, activeTab.name || 'document', activeAnnotations);
+    } catch (e) {
+      setError('Export failed: ' + e.message);
+    }
+  }
+
+  // ── Add Image handler ──
+  function handleAddImageClick() {
+    imageInputRef.current?.click();
+  }
+  function handleImageInput(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        setPendingImage({ dataURL: ev.target.result, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+        setActiveTool('add-image');
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
 
   return (
     <div className={`app ${darkMode ? 'dark' : 'light'}`}>
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
         accept=".pdf,application/pdf"
         style={{ display: 'none' }}
         onChange={handleFileInput}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,image/bmp"
+        style={{ display: 'none' }}
+        onChange={handleImageInput}
       />
 
       {/* Password dialog */}
@@ -297,6 +384,87 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Feature Modals ── */}
+      {activeModal === 'merge' && (
+        <MergeModal onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'split' && (
+        <SplitModal onClose={() => setActiveModal(null)} />
+      )}
+      {activeModal === 'compress' && (
+        <CompressModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          pdfDoc={activeTab?.pdfDoc}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'protect' && (
+        <ProtectModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'unlock' && (
+        <UnlockModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          pdfPassword={activeTab?.password}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'rearrange' && (
+        <PageManagerModal
+          pdfData={activeTab?.data}
+          pdfDoc={activeTab?.pdfDoc}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+          onApply={(newBytes) => {
+            if (activeTabId) updateTab(activeTabId, { data: newBytes });
+          }}
+        />
+      )}
+      {activeModal === 'pagenumbers' && (
+        <PageNumbersModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+      {activeModal === 'imagetopdf' && (
+        <ImageToPDFModal onClose={() => setActiveModal(null)} />
+      )}
+
+      {showSignatureModal && (
+        <SignatureModal
+          onConfirm={(sig) => {
+            const img = new Image();
+            img.onload = () => {
+              setPendingImage({ dataURL: sig.dataURL, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+              setActiveTool('add-image');
+            };
+            img.src = sig.dataURL;
+            setShowSignatureModal(false);
+          }}
+          onClose={() => setShowSignatureModal(false)}
+        />
+      )}
+
+      {/* Convert modals — image/word/excel export */}
+      {(activeModal === 'toimage' || activeModal === 'toword' || activeModal === 'toexcel') && (
+        <ConvertModal
+          pdfDoc={activeTab?.pdfDoc}
+          pdfName={activeTab?.name}
+          targetFormat={activeModal === 'toimage' ? 'image' : activeModal === 'toword' ? 'docx' : 'xlsx'}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {activeModal === 'wordtopdf' && (
+        <WordToPDFModal onClose={() => setActiveModal(null)} />
+      )}
+
       <Toolbar
         pdfName={activeTab?.name}
         currentPage={activeTab?.currentPage || 1}
@@ -323,6 +491,27 @@ export default function App() {
         onPrint={handlePrint}
         onFullscreen={handleFullscreen}
         onRotate={rotateCW}
+        activeTool={activeTool}
+        annotationColor={annotationColor}
+        annotationFontSize={annotationFontSize}
+        strokeWidth={strokeWidth}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onToolChange={(tool) => { setActiveTool(tool); if (tool !== 'add-image') setPendingImage(null); }}
+        onColorChange={setAnnotationColor}
+        onFontSizeChange={setAnnotationFontSize}
+        onStrokeWidthChange={setStrokeWidth}
+        onUndo={() => undoRef.current?.()}
+        onRedo={() => redoRef.current?.()}
+        onAddImageClick={handleAddImageClick}
+        onSignClick={() => setShowSignatureModal(true)}
+        onExportPDF={handleExportPDF}
+        onToolsAction={(id) => {
+          if (id === 'compare') { setCompareMode(true); }
+          else setActiveModal(id);
+        }}
       />
 
       {tabs.length > 0 && (
@@ -342,11 +531,23 @@ export default function App() {
             numPages={activeTab.numPages}
             currentPage={activeTab.currentPage}
             onPageSelect={goToPage}
+            annotations={activeAnnotations}
+            onDeleteAnnotation={(id) => deleteAnnotationRef.current?.(id)}
           />
         )}
 
         <div className="viewer-container">
-          {!activeTab ? (
+          {/* ── Compare mode ── */}
+          {compareMode && activeTab && (
+            <CompareView
+              leftPdfData={activeTab.data}
+              leftPdfName={activeTab.name}
+              darkMode={darkMode}
+              onClose={() => setCompareMode(false)}
+            />
+          )}
+
+          {!compareMode && tabs.length === 0 && (
             <DropZone
               onDrop={handleDrop}
               onOpen={openFile}
@@ -354,29 +555,57 @@ export default function App() {
               recentFiles={recentFiles}
               onShowRecent={() => {}}
             />
-          ) : (
-            <PDFViewer
-              key={activeTab.id}
-              pdfData={activeTab.data}
-              password={activeTab.password}
-              currentPage={activeTab.currentPage}
-              scale={activeTab.scale}
-              rotation={activeTab.rotation}
-              searchQuery={activeTab.searchQuery}
-              darkMode={darkMode}
-              onDocumentLoad={(n, doc) => {
-                updateTab(activeTab.id, { numPages: n, pdfDoc: doc || null });
-              }}
-              onPageChange={(page) => updateTab(activeTab.id, { currentPage: page })}
-              onSearchResults={(count) => updateTab(activeTab.id, { searchCount: count })}
-              onPasswordNeeded={(bytes, name) => {
-                // Remove the tab that triggered the password prompt
-                closeTab(activeTab.id);
-                setPendingPasswordData({ bytes, name });
-                setPasswordNeeded(true);
-              }}
-            />
           )}
+
+          {/* Render ALL tab viewers but only show the active one.
+              This keeps each PDF loaded & rendered when switching tabs. */}
+          {!compareMode && tabs.map((tab) => (
+            <div
+              key={tab.id}
+              style={{ display: tab.id === activeTabId ? 'contents' : 'none' }}
+            >
+              <PDFViewer
+                pdfData={tab.data}
+                pdfName={tab.name}
+                password={tab.password}
+                currentPage={tab.currentPage}
+                scale={tab.scale}
+                rotation={tab.rotation}
+                searchQuery={tab.searchQuery}
+                darkMode={darkMode}
+                viewMode={viewMode}
+                activeTool={activeTool}
+                annotationColor={annotationColor}
+                annotationFontSize={annotationFontSize}
+                strokeWidth={strokeWidth}
+                pendingImage={pendingImage}
+                onHistoryReady={(h) => {
+                  if (tab.id === activeTabId) {
+                    undoRef.current = h.undo;
+                    redoRef.current = h.redo;
+                    setCanUndo(h.canUndo);
+                    setCanRedo(h.canRedo);
+                  }
+                }}
+                onDocumentLoad={(n, doc) => {
+                  updateTab(tab.id, { numPages: n, pdfDoc: doc || null });
+                }}
+                onPageChange={(page) => updateTab(tab.id, { currentPage: page })}
+                onSearchResults={(count) => updateTab(tab.id, { searchCount: count })}
+                onPasswordNeeded={(bytes, name) => {
+                  closeTab(tab.id);
+                  setPendingPasswordData({ bytes, name });
+                  setPasswordNeeded(true);
+                }}
+                onAnnotationsChange={(anns, deleteFn) => {
+                  if (tab.id === activeTabId) {
+                    setActiveAnnotations(anns);
+                    deleteAnnotationRef.current = deleteFn;
+                  }
+                }}
+              />
+            </div>
+          ))}
 
           {error && (
             <div className="error-toast">
