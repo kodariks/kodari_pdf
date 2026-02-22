@@ -29,7 +29,15 @@ export function useAnnotations(pdfName) {
     }
     try {
       const raw  = localStorage.getItem(storageKey(pdfName));
-      const saved = raw ? JSON.parse(raw) : [];
+      let saved = raw ? JSON.parse(raw) : [];
+      // If main save is empty, try recovering from backup
+      if (saved.length === 0) {
+        const backup = localStorage.getItem(storageKey(pdfName) + '_backup');
+        if (backup) {
+          const backupData = JSON.parse(backup);
+          if (backupData.length > 0) saved = backupData;
+        }
+      }
       setHistory({ past: [], present: saved, future: [] });
     } catch {
       setHistory({ past: [], present: [], future: [] });
@@ -37,12 +45,16 @@ export function useAnnotations(pdfName) {
     loaded.current = true;
   }, [pdfName]);
 
-  // ── Debounced save ────────────────────────────────────────────────────────
+  // ── Auto-save with periodic backup ─────────────────────────────────────────
   useEffect(() => {
     if (!pdfName || !loaded.current) return;
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(storageKey(pdfName), JSON.stringify(annotations));
+        const data = JSON.stringify(annotations);
+        localStorage.setItem(storageKey(pdfName), data);
+        // Also save a backup with timestamp for crash recovery
+        localStorage.setItem(storageKey(pdfName) + '_backup', data);
+        localStorage.setItem(storageKey(pdfName) + '_backup_ts', String(Date.now()));
       } catch (e) {
         console.warn('Failed to save annotations:', e);
       }

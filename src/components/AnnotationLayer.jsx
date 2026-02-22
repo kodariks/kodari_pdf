@@ -21,6 +21,8 @@ export default function AnnotationLayer({
 }) {
   const svgRef = useRef(null);
   const [currentStroke,  setCurrentStroke]  = useState(null);
+  const [shapeStart,     setShapeStart]     = useState(null); // { x, y } for shape drawing
+  const [shapeEnd,       setShapeEnd]       = useState(null);
   const [hoveredId,      setHoveredId]      = useState(null);
   const [editingNoteId,  setEditingNoteId]  = useState(null);
   const [editingTextId,  setEditingTextId]  = useState(null);
@@ -37,7 +39,9 @@ export default function AnnotationLayer({
 
   if (!viewport) return null;
 
-  const isInteractive = ['draw', 'note', 'eraser', 'add-text', 'add-image'].includes(activeTool);
+  const SHAPE_TOOLS = ['shape-rect', 'shape-circle', 'shape-arrow', 'shape-line'];
+  const isShapeTool = SHAPE_TOOLS.includes(activeTool);
+  const isInteractive = ['draw', 'note', 'eraser', 'add-text', 'add-image', 'stamp', 'redact', ...SHAPE_TOOLS].includes(activeTool);
 
   // ── SVG pointer handlers ──────────────────────────────────────────────────
   function handlePointerDown(e) {
@@ -69,7 +73,6 @@ export default function AnnotationLayer({
     } else if (activeTool === 'add-image' && pendingImage) {
       const pos    = getPointerPos(e);
       const pdfPos = viewportToPdf(pos.x, pos.y, viewport);
-      // Default size: 1/3 of page width, maintaining aspect ratio
       const pageW  = viewport.viewBox ? viewport.viewBox[2] : (viewport.width / viewport.scale);
       const defW   = pageW / 3;
       const aspect = pendingImage.naturalH / pendingImage.naturalW;
@@ -79,6 +82,33 @@ export default function AnnotationLayer({
         w: defW, h: defW * aspect,
         dataURL: pendingImage.dataURL,
       });
+
+    } else if (isShapeTool) {
+      const pos = getPointerPos(e);
+      setShapeStart(pos);
+      setShapeEnd(pos);
+      e.currentTarget.setPointerCapture(e.pointerId);
+
+    } else if (activeTool === 'stamp') {
+      const pos    = getPointerPos(e);
+      const pdfPos = viewportToPdf(pos.x, pos.y, viewport);
+      onAddAnnotation({
+        type: 'stamp', page: pageNum,
+        x: pdfPos.x, y: pdfPos.y,
+        stampText: annotationColor === '#FFEA00' ? 'APPROVED' :
+                   annotationColor === '#76FF03' ? 'APPROVED' :
+                   annotationColor === '#FF1744' ? 'REJECTED' :
+                   annotationColor === '#FF6E40' ? 'DRAFT' :
+                   annotationColor === '#E040FB' ? 'CONFIDENTIAL' :
+                   'APPROVED',
+        color: annotationColor,
+      });
+
+    } else if (activeTool === 'redact') {
+      const pos = getPointerPos(e);
+      setShapeStart(pos);
+      setShapeEnd(pos);
+      e.currentTarget.setPointerCapture(e.pointerId);
     }
   }
 
@@ -86,6 +116,9 @@ export default function AnnotationLayer({
     if (activeTool === 'draw' && currentStroke) {
       const pos = getPointerPos(e);
       setCurrentStroke((prev) => ({ ...prev, points: [...prev.points, pos] }));
+    } else if ((isShapeTool || activeTool === 'redact') && shapeStart) {
+      const pos = getPointerPos(e);
+      setShapeEnd(pos);
     }
   }
 
@@ -99,6 +132,35 @@ export default function AnnotationLayer({
       });
     }
     setCurrentStroke(null);
+
+    if (isShapeTool && shapeStart && shapeEnd) {
+      const p1 = viewportToPdf(shapeStart.x, shapeStart.y, viewport);
+      const p2 = viewportToPdf(shapeEnd.x, shapeEnd.y, viewport);
+      const minW = 5 / viewport.scale;
+      if (Math.abs(p2.x - p1.x) > minW || Math.abs(p2.y - p1.y) > minW) {
+        onAddAnnotation({
+          type: activeTool, page: pageNum, color: annotationColor,
+          strokeWidth: strokeWidth || 2,
+          x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y,
+        });
+      }
+      setShapeStart(null);
+      setShapeEnd(null);
+    }
+
+    if (activeTool === 'redact' && shapeStart && shapeEnd) {
+      const p1 = viewportToPdf(shapeStart.x, shapeStart.y, viewport);
+      const p2 = viewportToPdf(shapeEnd.x, shapeEnd.y, viewport);
+      if (Math.abs(p2.x - p1.x) > 2 && Math.abs(p2.y - p1.y) > 2) {
+        onAddAnnotation({
+          type: 'redact', page: pageNum,
+          x: Math.min(p1.x, p2.x), y: Math.min(p1.y, p2.y),
+          w: Math.abs(p2.x - p1.x), h: Math.abs(p2.y - p1.y),
+        });
+      }
+      setShapeStart(null);
+      setShapeEnd(null);
+    }
   }
 
   function handleAnnotationClick(e, annId) {
@@ -149,8 +211,13 @@ export default function AnnotationLayer({
   }
 
   const highlights   = annotations.filter((a) => a.type === 'highlight');
+  const underlines   = annotations.filter((a) => a.type === 'underline');
+  const strikethroughs = annotations.filter((a) => a.type === 'strikethrough');
   const drawings     = annotations.filter((a) => a.type === 'drawing');
+  const shapes       = annotations.filter((a) => SHAPE_TOOLS.includes(a.type));
   const notes        = annotations.filter((a) => a.type === 'note');
+  const stamps       = annotations.filter((a) => a.type === 'stamp');
+  const redactions   = annotations.filter((a) => a.type === 'redact');
   const textBoxes    = annotations.filter((a) => a.type === 'text-box');
   const imageOverlays= annotations.filter((a) => a.type === 'image-overlay');
 
@@ -169,6 +236,9 @@ export default function AnnotationLayer({
                 : activeTool === 'eraser'    ? 'pointer'
                 : activeTool === 'add-text'  ? 'text'
                 : activeTool === 'add-image' ? 'copy'
+                : activeTool === 'stamp'     ? 'copy'
+                : activeTool === 'redact'    ? 'crosshair'
+                : isShapeTool                ? 'crosshair'
                 : 'default',
         }}
         onPointerDown={isInteractive ? handlePointerDown : undefined}
@@ -216,6 +286,148 @@ export default function AnnotationLayer({
             />
           );
         })}
+
+        {/* Underline annotations */}
+        {underlines.map((ann) =>
+          ann.rects.map((rect, i) => {
+            const vr = rectPdfToViewport(rect, viewport);
+            return (
+              <line
+                key={`${ann.id}-${i}`}
+                x1={vr.x} y1={vr.y + vr.h} x2={vr.x + vr.w} y2={vr.y + vr.h}
+                stroke={ann.color} strokeWidth={2 * viewport.scale}
+                style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+                onClick={(e) => handleAnnotationClick(e, ann.id)}
+                onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              />
+            );
+          })
+        )}
+
+        {/* Strikethrough annotations */}
+        {strikethroughs.map((ann) =>
+          ann.rects.map((rect, i) => {
+            const vr = rectPdfToViewport(rect, viewport);
+            return (
+              <line
+                key={`${ann.id}-${i}`}
+                x1={vr.x} y1={vr.y + vr.h / 2} x2={vr.x + vr.w} y2={vr.y + vr.h / 2}
+                stroke={ann.color} strokeWidth={2 * viewport.scale}
+                style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+                onClick={(e) => handleAnnotationClick(e, ann.id)}
+                onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              />
+            );
+          })
+        )}
+
+        {/* Shape annotations */}
+        {shapes.map((ann) => {
+          const vp1 = pdfToViewport(ann.x1, ann.y1, viewport);
+          const vp2 = pdfToViewport(ann.x2, ann.y2, viewport);
+          const isErasing = hoveredId === ann.id && activeTool === 'eraser';
+          const stroke = isErasing ? '#ff0000' : ann.color;
+          const sw = (ann.strokeWidth || 2) * viewport.scale;
+
+          if (ann.type === 'shape-rect') {
+            const x = Math.min(vp1.x, vp2.x), y = Math.min(vp1.y, vp2.y);
+            const w = Math.abs(vp2.x - vp1.x), h = Math.abs(vp2.y - vp1.y);
+            return <rect key={ann.id} x={x} y={y} width={w} height={h} fill="none" stroke={stroke} strokeWidth={sw}
+              style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)} onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)} onMouseLeave={() => setHoveredId(null)} />;
+          }
+          if (ann.type === 'shape-circle') {
+            const cx = (vp1.x + vp2.x) / 2, cy = (vp1.y + vp2.y) / 2;
+            const rx = Math.abs(vp2.x - vp1.x) / 2, ry = Math.abs(vp2.y - vp1.y) / 2;
+            return <ellipse key={ann.id} cx={cx} cy={cy} rx={rx} ry={ry} fill="none" stroke={stroke} strokeWidth={sw}
+              style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)} onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)} onMouseLeave={() => setHoveredId(null)} />;
+          }
+          if (ann.type === 'shape-line') {
+            return <line key={ann.id} x1={vp1.x} y1={vp1.y} x2={vp2.x} y2={vp2.y} stroke={stroke} strokeWidth={sw} strokeLinecap="round"
+              style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)} onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)} onMouseLeave={() => setHoveredId(null)} />;
+          }
+          if (ann.type === 'shape-arrow') {
+            const angle = Math.atan2(vp2.y - vp1.y, vp2.x - vp1.x);
+            const headLen = 12 * viewport.scale;
+            const ax1 = vp2.x - headLen * Math.cos(angle - Math.PI / 6);
+            const ay1 = vp2.y - headLen * Math.sin(angle - Math.PI / 6);
+            const ax2 = vp2.x - headLen * Math.cos(angle + Math.PI / 6);
+            const ay2 = vp2.y - headLen * Math.sin(angle + Math.PI / 6);
+            return <g key={ann.id} style={{ pointerEvents: activeTool === 'eraser' ? 'stroke' : 'none' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)} onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)} onMouseLeave={() => setHoveredId(null)}>
+              <line x1={vp1.x} y1={vp1.y} x2={vp2.x} y2={vp2.y} stroke={stroke} strokeWidth={sw} strokeLinecap="round" />
+              <polyline points={`${ax1},${ay1} ${vp2.x},${vp2.y} ${ax2},${ay2}`} stroke={stroke} strokeWidth={sw} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </g>;
+          }
+          return null;
+        })}
+
+        {/* Stamp annotations */}
+        {stamps.map((ann) => {
+          const vp = pdfToViewport(ann.x, ann.y, viewport);
+          const isErasing = hoveredId === ann.id && activeTool === 'eraser';
+          const fontSize = 14 * viewport.scale;
+          return (
+            <g key={ann.id} transform={`translate(${vp.x}, ${vp.y})`}
+              style={{ pointerEvents: 'auto', cursor: activeTool === 'eraser' ? 'pointer' : activeTool === 'cursor' ? 'move' : 'default' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)}
+              onPointerDown={(e) => startDrag(e, ann)}
+              onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)}
+              onMouseLeave={() => setHoveredId(null)}>
+              <rect x={-4} y={-fontSize - 4} width={ann.stampText.length * fontSize * 0.7 + 16} height={fontSize + 10}
+                rx={3} fill="none" stroke={isErasing ? '#ff0000' : ann.color} strokeWidth={2 * viewport.scale} />
+              <text x={4} y={-2} fontSize={fontSize} fill={isErasing ? '#ff0000' : ann.color}
+                fontWeight="700" fontFamily="Helvetica,sans-serif" style={{ pointerEvents: 'none' }}>{ann.stampText}</text>
+            </g>
+          );
+        })}
+
+        {/* Redaction annotations */}
+        {redactions.map((ann) => {
+          const vr = rectPdfToViewport({ x: ann.x, y: ann.y, w: ann.w, h: ann.h }, viewport);
+          const isErasing = hoveredId === ann.id && activeTool === 'eraser';
+          return (
+            <rect key={ann.id} x={vr.x} y={vr.y} width={vr.w} height={vr.h}
+              fill={isErasing ? '#ff4444' : '#000000'} opacity={0.85} rx={1}
+              stroke={isErasing ? '#ff0000' : 'none'} strokeWidth={2}
+              style={{ pointerEvents: activeTool === 'eraser' ? 'auto' : 'none' }}
+              onClick={(e) => handleAnnotationClick(e, ann.id)}
+              onMouseEnter={() => activeTool === 'eraser' && setHoveredId(ann.id)}
+              onMouseLeave={() => setHoveredId(null)} />
+          );
+        })}
+
+        {/* Shape preview while drawing */}
+        {isShapeTool && shapeStart && shapeEnd && (() => {
+          const s = shapeStart, end = shapeEnd;
+          const sw = (strokeWidth || 2) * viewport.scale;
+          if (activeTool === 'shape-rect') {
+            return <rect x={Math.min(s.x, end.x)} y={Math.min(s.y, end.y)} width={Math.abs(end.x - s.x)} height={Math.abs(end.y - s.y)}
+              fill="none" stroke={annotationColor} strokeWidth={sw} opacity={0.6} strokeDasharray="4 3" />;
+          }
+          if (activeTool === 'shape-circle') {
+            return <ellipse cx={(s.x + end.x) / 2} cy={(s.y + end.y) / 2} rx={Math.abs(end.x - s.x) / 2} ry={Math.abs(end.y - s.y) / 2}
+              fill="none" stroke={annotationColor} strokeWidth={sw} opacity={0.6} strokeDasharray="4 3" />;
+          }
+          if (activeTool === 'shape-line') {
+            return <line x1={s.x} y1={s.y} x2={end.x} y2={end.y} stroke={annotationColor} strokeWidth={sw} opacity={0.6} strokeDasharray="4 3" />;
+          }
+          if (activeTool === 'shape-arrow') {
+            return <line x1={s.x} y1={s.y} x2={end.x} y2={end.y} stroke={annotationColor} strokeWidth={sw} opacity={0.6} strokeDasharray="4 3" />;
+          }
+          return null;
+        })()}
+
+        {/* Redaction preview while drawing */}
+        {activeTool === 'redact' && shapeStart && shapeEnd && (
+          <rect x={Math.min(shapeStart.x, shapeEnd.x)} y={Math.min(shapeStart.y, shapeEnd.y)}
+            width={Math.abs(shapeEnd.x - shapeStart.x)} height={Math.abs(shapeEnd.y - shapeStart.y)}
+            fill="#000000" opacity={0.5} strokeDasharray="4 3" stroke="#ff0000" strokeWidth={1} />
+        )}
 
         {/* Active drawing stroke */}
         {currentStroke && currentStroke.points.length > 1 && (

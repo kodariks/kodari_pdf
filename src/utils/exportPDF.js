@@ -17,8 +17,12 @@ import { downloadBytes } from './pdfManipulation.js';
  * @param {string}      pdfName
  * @param {Array}       annotations  — flat array of all page annotations
  */
+let rgb; // module-level reference set at export time
+
 export async function exportAnnotatedPDF(pdfBytes, pdfName, annotations) {
-  const { PDFDocument, rgb, StandardFonts } = await import('pdf-lib');
+  const pdfLib = await import('pdf-lib');
+  const { PDFDocument, StandardFonts } = pdfLib;
+  rgb = pdfLib.rgb;
 
   const doc  = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -49,6 +53,24 @@ export async function exportAnnotatedPDF(pdfBytes, pdfName, annotations) {
             break;
           case 'image-overlay':
             await renderImageOverlay(page, ann, doc, pageH);
+            break;
+          case 'underline':
+            renderUnderline(page, ann, pageH);
+            break;
+          case 'strikethrough':
+            renderStrikethrough(page, ann, pageH);
+            break;
+          case 'shape-rect':
+          case 'shape-circle':
+          case 'shape-line':
+          case 'shape-arrow':
+            renderShape(page, ann, pageH);
+            break;
+          case 'stamp':
+            renderStamp(page, ann, font, pageH);
+            break;
+          case 'redact':
+            renderRedaction(page, ann, pageH);
             break;
           default:
             break;
@@ -181,6 +203,93 @@ function renderTextBox(page, ann, font, pageH) {
       });
     }
     currentY -= size * 1.4;
+  });
+}
+
+function renderUnderline(page, ann, pageH) {
+  const c = hexToRgb(ann.color);
+  for (const rect of (ann.rects || [])) {
+    page.drawLine({
+      start: { x: rect.x, y: rect.y },
+      end:   { x: rect.x + rect.w, y: rect.y },
+      thickness: 1.5,
+      color: rgb(c.r, c.g, c.b),
+    });
+  }
+}
+
+function renderStrikethrough(page, ann, pageH) {
+  const c = hexToRgb(ann.color);
+  for (const rect of (ann.rects || [])) {
+    const midY = rect.y + rect.h / 2;
+    page.drawLine({
+      start: { x: rect.x, y: midY },
+      end:   { x: rect.x + rect.w, y: midY },
+      thickness: 1.5,
+      color: rgb(c.r, c.g, c.b),
+    });
+  }
+}
+
+function renderShape(page, ann, pageH) {
+  const c = hexToRgb(ann.color);
+  const sw = ann.strokeWidth || 2;
+
+  if (ann.type === 'shape-rect') {
+    const x = Math.min(ann.x1, ann.x2);
+    const y = Math.min(ann.y1, ann.y2);
+    const w = Math.abs(ann.x2 - ann.x1);
+    const h = Math.abs(ann.y2 - ann.y1);
+    page.drawRectangle({ x, y, width: w, height: h, borderColor: rgb(c.r, c.g, c.b), borderWidth: sw, color: undefined });
+  } else if (ann.type === 'shape-circle') {
+    const cx = (ann.x1 + ann.x2) / 2;
+    const cy = (ann.y1 + ann.y2) / 2;
+    const rx = Math.abs(ann.x2 - ann.x1) / 2;
+    const ry = Math.abs(ann.y2 - ann.y1) / 2;
+    page.drawEllipse({ x: cx, y: cy, xScale: rx, yScale: ry, borderColor: rgb(c.r, c.g, c.b), borderWidth: sw, color: undefined });
+  } else if (ann.type === 'shape-line' || ann.type === 'shape-arrow') {
+    page.drawLine({
+      start: { x: ann.x1, y: ann.y1 },
+      end:   { x: ann.x2, y: ann.y2 },
+      thickness: sw,
+      color: rgb(c.r, c.g, c.b),
+    });
+    if (ann.type === 'shape-arrow') {
+      const angle = Math.atan2(ann.y2 - ann.y1, ann.x2 - ann.x1);
+      const headLen = 10;
+      const ax1 = ann.x2 - headLen * Math.cos(angle - Math.PI / 6);
+      const ay1 = ann.y2 - headLen * Math.sin(angle - Math.PI / 6);
+      const ax2 = ann.x2 - headLen * Math.cos(angle + Math.PI / 6);
+      const ay2 = ann.y2 - headLen * Math.sin(angle + Math.PI / 6);
+      page.drawLine({ start: { x: ann.x2, y: ann.y2 }, end: { x: ax1, y: ay1 }, thickness: sw, color: rgb(c.r, c.g, c.b) });
+      page.drawLine({ start: { x: ann.x2, y: ann.y2 }, end: { x: ax2, y: ay2 }, thickness: sw, color: rgb(c.r, c.g, c.b) });
+    }
+  }
+}
+
+function renderStamp(page, ann, font, pageH) {
+  const c = hexToRgb(ann.color || '#FF1744');
+  const size = 18;
+  const text = ann.stampText || 'APPROVED';
+  const textWidth = font.widthOfTextAtSize(text, size);
+  const pad = 6;
+  page.drawRectangle({
+    x: ann.x - pad, y: ann.y - size - pad,
+    width: textWidth + pad * 2, height: size + pad * 2,
+    borderColor: rgb(c.r, c.g, c.b), borderWidth: 2, color: undefined,
+  });
+  page.drawText(text, {
+    x: ann.x, y: ann.y - size + 2,
+    size, font,
+    color: rgb(c.r, c.g, c.b),
+  });
+}
+
+function renderRedaction(page, ann, pageH) {
+  page.drawRectangle({
+    x: ann.x, y: ann.y,
+    width: ann.w, height: ann.h,
+    color: rgb(0, 0, 0),
   });
 }
 

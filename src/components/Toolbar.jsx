@@ -19,6 +19,9 @@ const TOOLS_MENU = [
   { id: 'toword',      label: 'PDF to Word',        icon: '📝', desc: 'Export text as .docx'        },
   { id: 'toexcel',     label: 'PDF to Excel',       icon: '📊', desc: 'Export tables as .xlsx'      },
   'separator',
+  { id: 'watermark',   label: 'Add Watermark',       icon: '💧', desc: 'Add text watermark to PDF'   },
+  { id: 'ocr',         label: 'OCR (Extract Text)',   icon: '🔍', desc: 'Extract text from scanned PDFs' },
+  'separator',
   { id: 'compare',     label: 'Compare PDFs',       icon: '⇔',  desc: 'View two PDFs side by side'  },
 ];
 
@@ -87,13 +90,23 @@ export default function Toolbar({
   viewMode,
   onViewModeChange,
   onToolsAction,
+  searchCaseSensitive,
+  searchRegex,
+  onToggleSearchCase,
+  onToggleSearchRegex,
+  lang,
+  languages,
+  onLangChange,
+  t,
 }) {
   const [pageInput,   setPageInput]   = useState('');
   const [zoomOpen,    setZoomOpen]    = useState(false);
   const [colorOpen,   setColorOpen]   = useState(false);
   const [toolsOpen,   setToolsOpen]   = useState(false);
+  const [langOpen,    setLangOpen]    = useState(false);
   const zoomRef   = useRef(null);
   const searchRef = useRef(null);
+  const langRef   = useRef(null);
   const colorRef  = useRef(null);
   const toolsRef  = useRef(null);
 
@@ -127,6 +140,16 @@ export default function Toolbar({
     return () => document.removeEventListener('mousedown', handler);
   }, [toolsOpen]);
 
+  // Close language menu on outside click
+  useEffect(() => {
+    if (!langOpen) return;
+    function handler(e) {
+      if (langRef.current && !langRef.current.contains(e.target)) setLangOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [langOpen]);
+
   // Ctrl+F focuses search
   useEffect(() => {
     function handler(e) {
@@ -151,7 +174,7 @@ export default function Toolbar({
     : `${Math.round(scale * 100)}%`;
 
   return (
-    <header className="toolbar">
+    <header className="toolbar" role="toolbar" aria-label="PDF viewer toolbar">
 
       {/* ── Left ─────────────────────────────────── */}
       <div className="tb-group tb-left">
@@ -359,6 +382,100 @@ export default function Toolbar({
             </select>
           )}
 
+          {/* Underline */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'underline' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('underline')}
+            title="Underline text (U)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M6 3v7a6 6 0 0 0 6 6 6 6 0 0 0 6-6V3"/>
+              <line x1="4" y1="21" x2="20" y2="21"/>
+            </svg>
+          </button>
+
+          {/* Strikethrough */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'strikethrough' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('strikethrough')}
+            title="Strikethrough text (S)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="4" y1="12" x2="20" y2="12"/>
+              <path d="M17.5 7.5c0-2-1.5-3.5-5.5-3.5S6.5 5.5 6.5 7.5c0 2 1.5 3 5.5 4.5 4 1.5 5.5 2.5 5.5 4.5s-1.5 3.5-5.5 3.5S6.5 18.5 6.5 16.5"/>
+            </svg>
+          </button>
+
+          <div className="tb-divider" />
+
+          {/* Shape tools dropdown */}
+          <button
+            className={`tb-btn icon-btn ${['shape-rect','shape-circle','shape-arrow','shape-line'].includes(activeTool) ? 'tool-active' : ''}`}
+            onClick={() => onToolChange(activeTool === 'shape-rect' ? 'cursor' : 'shape-rect')}
+            title="Rectangle shape"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+            </svg>
+          </button>
+
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'shape-circle' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('shape-circle')}
+            title="Circle shape"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+          </button>
+
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'shape-arrow' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('shape-arrow')}
+            title="Arrow"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="5" y1="19" x2="19" y2="5"/>
+              <polyline points="12 5 19 5 19 12"/>
+            </svg>
+          </button>
+
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'shape-line' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('shape-line')}
+            title="Line"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="5" y1="19" x2="19" y2="5"/>
+            </svg>
+          </button>
+
+          {/* Stamp */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'stamp' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('stamp')}
+            title="Stamp"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M5 21h14"/>
+              <path d="M12 17V12a3 3 0 0 0 3-3V7a3 3 0 0 0-6 0v2a3 3 0 0 0 3 3"/>
+              <rect x="4" y="17" width="16" height="2" rx="1"/>
+            </svg>
+          </button>
+
+          {/* Redact */}
+          <button
+            className={`tb-btn icon-btn ${activeTool === 'redact' ? 'tool-active' : ''}`}
+            onClick={() => onToolChange('redact')}
+            title="Redact (black out content)"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="8" width="18" height="8" rx="1" fill="currentColor"/>
+            </svg>
+          </button>
+
+          <div className="tb-divider" />
+
           {/* Eraser */}
           <button
             className={`tb-btn icon-btn ${activeTool === 'eraser' ? 'tool-active' : ''}`}
@@ -479,6 +596,16 @@ export default function Toolbar({
               {searchQuery && searchCount === 0 && (
                 <span className="search-count no-match">0/0</span>
               )}
+              <button
+                className={`search-toggle-btn ${searchCaseSensitive ? 'active' : ''}`}
+                onClick={onToggleSearchCase}
+                title="Match case"
+              >Aa</button>
+              <button
+                className={`search-toggle-btn ${searchRegex ? 'active' : ''}`}
+                onClick={onToggleSearchRegex}
+                title="Use regular expression"
+              >.*</button>
               {searchQuery && (
                 <>
                   <button className="search-nav-btn" onClick={onSearchPrev} title="Previous match (Shift+Enter)">‹</button>
@@ -611,6 +738,39 @@ export default function Toolbar({
             </svg>
           )}
         </button>
+
+        {/* Language selector */}
+        {languages && languages.length > 0 && (
+          <div className="lang-menu-wrap" ref={langRef}>
+            <button
+              className="tb-btn icon-btn"
+              title={t ? t('language') : 'Language'}
+              onClick={() => setLangOpen((o) => !o)}
+              aria-label="Change language"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="2" y1="12" x2="22" y2="12"/>
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+              </svg>
+              <span style={{ fontSize: 11, marginLeft: 2 }}>{(lang || 'en').toUpperCase()}</span>
+            </button>
+            {langOpen && (
+              <div className="tools-menu" style={{ right: 0, left: 'auto', minWidth: 140 }}>
+                {languages.map((l) => (
+                  <button
+                    key={l.code}
+                    className={`tools-menu-item${lang === l.code ? ' active' : ''}`}
+                    onClick={() => { onLangChange?.(l.code); setLangOpen(false); }}
+                  >
+                    <span style={{ fontSize: 12, minWidth: 28, fontWeight: lang === l.code ? 700 : 400 }}>{l.code.toUpperCase()}</span>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

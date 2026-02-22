@@ -32,8 +32,12 @@ function formatSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
+function loadSetting(key, fallback) {
+  try { const v = localStorage.getItem('kodari_settings_' + key); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+
 export default function CompressModal({ pdfData, pdfName, pdfDoc, onClose }) {
-  const [level,       setLevel]       = useState('medium');
+  const [level,       setLevel]       = useState(() => loadSetting('compress_level', 'medium'));
   const [compressing, setCompressing] = useState(false);
   const [result,      setResult]      = useState(null); // { bytes, size }
   const [error,       setError]       = useState(null);
@@ -187,7 +191,7 @@ export default function CompressModal({ pdfData, pdfName, pdfDoc, onClose }) {
               <button
                 key={lv.id}
                 className={`compress-level-card ${level === lv.id ? 'active' : ''}`}
-                onClick={() => { setLevel(lv.id); setResult(null); }}
+                onClick={() => { setLevel(lv.id); setResult(null); try { localStorage.setItem('kodari_settings_compress_level', JSON.stringify(lv.id)); } catch {} }}
               >
                 <div className="compress-level-icon">{lv.icon}</div>
                 <div className="compress-level-label">{lv.label}</div>

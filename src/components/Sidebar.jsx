@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AnnotationsPanel from './AnnotationsPanel.jsx';
 
-const THUMB_WIDTH = 160;
+const THUMB_WIDTH = 140;
 
 // ── Lazy thumbnail ─────────────────────────────────────────────────────────
 function Thumbnail({ pdf, pageNum, isActive, onClick }) {
@@ -33,8 +33,8 @@ function Thumbnail({ pdf, pageNum, isActive, onClick }) {
       const canvas   = canvasRef.current;
       if (!canvas) return;
 
-      // Render at higher resolution for sharp thumbnails on HiDPI screens
-      const dpr = window.devicePixelRatio || 1;
+      // Use lower DPI for thumbnails to save memory on large docs
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       canvas.width   = Math.floor(vp.width  * dpr);
       canvas.height  = Math.floor(vp.height * dpr);
       canvas.style.width  = `${vp.width}px`;
@@ -139,13 +139,16 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
   }
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" aria-label="PDF sidebar">
       {/* Tab bar */}
-      <div className="sidebar-tabs">
+      <div className="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
         <button
           className={`sidebar-tab ${tab === 'thumbs' ? 'active' : ''}`}
           onClick={() => setTab('thumbs')}
           title="Page thumbnails"
+          role="tab"
+          aria-selected={tab === 'thumbs'}
+          aria-controls="sidebar-panel-thumbs"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -158,6 +161,9 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
           className={`sidebar-tab ${tab === 'outline' ? 'active' : ''}`}
           onClick={() => setTab('outline')}
           title="Bookmarks / Outline"
+          role="tab"
+          aria-selected={tab === 'outline'}
+          aria-controls="sidebar-panel-outline"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <line x1="8" y1="6" x2="21" y2="6"/>
@@ -172,6 +178,9 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
           className={`sidebar-tab ${tab === 'annotations' ? 'active' : ''}`}
           onClick={() => setTab('annotations')}
           title="Annotations"
+          role="tab"
+          aria-selected={tab === 'annotations'}
+          aria-controls="sidebar-panel-annotations"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -181,7 +190,7 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
 
       {/* Thumbnails */}
       {tab === 'thumbs' && (
-        <div className="sidebar-inner">
+        <div className="sidebar-inner" id="sidebar-panel-thumbs" role="tabpanel" aria-label="Page thumbnails">
           {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
             <div key={n} ref={n === currentPage ? activeRef : null}>
               <Thumbnail
@@ -197,7 +206,7 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
 
       {/* Outline */}
       {tab === 'outline' && (
-        <div className="sidebar-outline">
+        <div className="sidebar-outline" id="sidebar-panel-outline" role="tabpanel" aria-label="Document outline">
           {!outline && <div className="sidebar-loading">Loading…</div>}
           {outline && outline.length === 0 && (
             <div className="sidebar-loading" style={{ padding: '20px', textAlign: 'center' }}>
@@ -216,7 +225,7 @@ export default function Sidebar({ pdf, numPages, currentPage, onPageSelect, anno
 
       {/* Annotations */}
       {tab === 'annotations' && (
-        <div className="sidebar-inner">
+        <div className="sidebar-inner" id="sidebar-panel-annotations" role="tabpanel" aria-label="Annotations">
           <AnnotationsPanel
             annotations={annotations || []}
             onPageSelect={onPageSelect}

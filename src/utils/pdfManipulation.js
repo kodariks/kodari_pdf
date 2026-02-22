@@ -157,10 +157,10 @@ export async function rotatePages(pdfBytes, rotationMap) {
  * @returns {Promise<Uint8Array>}
  */
 export async function compressPDF(pdfBytes, level = 'low') {
-  const { PDFDocument } = await getPdfLib();
+  const { PDFDocument, PDFName, PDFStream, PDFRawStream, PDFRef } = await getPdfLib();
   const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
 
-  // Strip metadata
+  // Strip metadata (all levels)
   doc.setTitle('');
   doc.setAuthor('');
   doc.setSubject('');
@@ -168,8 +168,123 @@ export async function compressPDF(pdfBytes, level = 'low') {
   doc.setCreator('Kodari PDF');
   doc.setProducer('Kodari PDF');
 
-  // All levels use object streams. High/medium compress more aggressively
-  // via objectsPerTick. True image recompression is handled by the UI layer.
+  // Medium & High: strip unused objects by round-tripping through copy
+  if (level === 'medium' || level === 'high') {
+    // Round-trip copy keeps only referenced objects, discarding orphans
+    const cleanDoc = await PDFDocument.create();
+    const srcPages = doc.getPageIndices();
+    const copied   = await cleanDoc.copyPages(doc, srcPages);
+    copied.forEach((page) => cleanDoc.addPage(page));
+
+    // Copy metadata settings to the clean doc
+    cleanDoc.setTitle('');
+    cleanDoc.setAuthor('');
+    cleanDoc.setSubject('');
+    cleanDoc.setKeywords([]);
+    cleanDoc.setCreator('Kodari PDF');
+    cleanDoc.setProducer('Kodari PDF');
+
+    if (level === 'medium') {
+      return cleanDoc.save({ useObjectStreams: true, addDefaultPage: false });
+    }
+
+    // High: re-encode images at lower quality via canvas
+    // We need to work with the cleaned doc's pages
+    const total = cleanDoc.getPageCount();
+    for (let i = 0; i < total; i++) {
+      const page      = cleanDoc.getPage(i);
+      const { width, height } = page.getSize();
+      const resources = page.node.Resources();
+      if (!resources) continue;
+
+      const xObjects = resources.lookup(PDFName.of('XObject'));
+      if (!xObjects) continue;
+
+      const entries = xObjects.entries ? xObjects.entries() : [];
+      for (const [name, ref] of entries) {
+        try {
+          const xObj = xObjects.context.lookup(ref);
+          if (!xObj || !xObj.dict) continue;
+
+          const subtype = xObj.dict.get(PDFName.of('Subtype'));
+          if (!subtype || subtype.toString() !== '/Image') continue;
+
+          // Read image dimensions
+          const imgWidth  = xObj.dict.get(PDFName.of('Width'));
+          const imgHeight = xObj.dict.get(PDFName.of('Height'));
+          if (!imgWidth || !imgHeight) continue;
+
+          const w = typeof imgWidth.value  === 'function' ? imgWidth.value()  : imgWidth.numberValue  ? imgWidth.numberValue  : Number(imgWidth);
+          const h = typeof imgHeight.value === 'function' ? imgHeight.value() : imgHeight.numberValue ? imgHeight.numberValue : Number(imgHeight);
+          if (!w || !h || w < 4 || h < 4) continue;
+
+          // Decode the image stream bytes
+          let rawBytes;
+          try {
+            rawBytes = xObj.getContents ? xObj.getContents() : xObj.contents;
+          } catch (_) {
+            continue; // Can't decode this stream (unusual filter)
+          }
+          if (!rawBytes || rawBytes.length < 16) continue;
+
+          // Determine color space to set up canvas ImageData correctly
+          const colorSpace = xObj.dict.get(PDFName.of('ColorSpace'));
+          const csName     = colorSpace ? colorSpace.toString() : '/DeviceRGB';
+          const bpc        = xObj.dict.get(PDFName.of('BitsPerComponent'));
+          const bitsPerComp = bpc ? (typeof bpc.value === 'function' ? bpc.value() : Number(bpc)) : 8;
+
+          // Only handle 8-bit RGB or Grayscale images for recompression
+          if (bitsPerComp !== 8) continue;
+          const isGray = csName.includes('Gray');
+          const channels = isGray ? 1 : 3;
+          const expectedLen = w * h * channels;
+
+          // If decoded size does not match, skip (could be JPEG pass-through, etc.)
+          if (rawBytes.length < expectedLen) continue;
+
+          // Paint onto a canvas and re-export as JPEG at reduced quality
+          const canvas    = document.createElement('canvas');
+          canvas.width    = w;
+          canvas.height   = h;
+          const ctx       = canvas.getContext('2d');
+          const imgData   = ctx.createImageData(w, h);
+          const data      = imgData.data;
+
+          for (let p = 0; p < w * h; p++) {
+            if (isGray) {
+              data[p * 4]     = rawBytes[p];
+              data[p * 4 + 1] = rawBytes[p];
+              data[p * 4 + 2] = rawBytes[p];
+            } else {
+              data[p * 4]     = rawBytes[p * 3];
+              data[p * 4 + 1] = rawBytes[p * 3 + 1];
+              data[p * 4 + 2] = rawBytes[p * 3 + 2];
+            }
+            data[p * 4 + 3] = 255;
+          }
+          ctx.putImageData(imgData, 0, 0);
+
+          // Re-encode at 0.5 quality JPEG
+          const dataURL  = canvas.toDataURL('image/jpeg', 0.5);
+          const b64      = dataURL.split(',')[1];
+          const binStr   = atob(b64);
+          const jpegBytes = new Uint8Array(binStr.length);
+          for (let j = 0; j < binStr.length; j++) jpegBytes[j] = binStr.charCodeAt(j);
+
+          // Embed as a new JPEG image and replace in the XObject dict
+          const newImg = await cleanDoc.embedJpg(jpegBytes);
+          xObjects.set(name, newImg.ref);
+        } catch (_) {
+          // If any individual image fails, skip it and continue
+          continue;
+        }
+      }
+    }
+
+    return cleanDoc.save({ useObjectStreams: true, addDefaultPage: false });
+  }
+
+  // Low: just object streams + metadata strip
   return doc.save({ useObjectStreams: true, addDefaultPage: false });
 }
 

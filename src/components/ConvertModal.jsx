@@ -17,10 +17,17 @@ const DPI_OPTIONS = [
   { value: 300, label: '300 DPI (high quality)'},
 ];
 
+function loadSetting(key, fallback) {
+  try { const v = localStorage.getItem('kodari_settings_' + key); return v !== null ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function saveSetting(key, value) {
+  try { localStorage.setItem('kodari_settings_' + key, JSON.stringify(value)); } catch {}
+}
+
 export default function ConvertModal({ pdfDoc, pdfName, targetFormat, onClose }) {
   const [activeTab,   setActiveTab]   = useState(targetFormat || 'image');
-  const [imgFormat,   setImgFormat]   = useState('jpeg');
-  const [dpi,         setDpi]         = useState(150);
+  const [imgFormat,   setImgFormat]   = useState(() => loadSetting('convert_imgFormat', 'jpeg'));
+  const [dpi,         setDpi]         = useState(() => loadSetting('convert_dpi', 150));
   const [converting,  setConverting]  = useState(false);
   const [progress,    setProgress]    = useState(null); // { current, total }
   const [error,       setError]       = useState(null);
@@ -89,11 +96,11 @@ export default function ConvertModal({ pdfDoc, pdfName, targetFormat, onClose })
               <div className="split-mode-tabs">
                 <button
                   className={`split-mode-tab ${imgFormat === 'jpeg' ? 'active' : ''}`}
-                  onClick={() => setImgFormat('jpeg')}
+                  onClick={() => { setImgFormat('jpeg'); saveSetting('convert_imgFormat', 'jpeg'); }}
                 >JPEG</button>
                 <button
                   className={`split-mode-tab ${imgFormat === 'png' ? 'active' : ''}`}
-                  onClick={() => setImgFormat('png')}
+                  onClick={() => { setImgFormat('png'); saveSetting('convert_imgFormat', 'png'); }}
                 >PNG</button>
               </div>
             </div>
@@ -104,7 +111,7 @@ export default function ConvertModal({ pdfDoc, pdfName, targetFormat, onClose })
                   <button
                     key={opt.value}
                     className={`split-mode-tab ${dpi === opt.value ? 'active' : ''}`}
-                    onClick={() => setDpi(opt.value)}
+                    onClick={() => { setDpi(opt.value); saveSetting('convert_dpi', opt.value); }}
                   >{opt.label}</button>
                 ))}
               </div>

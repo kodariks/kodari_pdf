@@ -16,7 +16,11 @@ import SignatureModal from './components/SignatureModal.jsx';
 import ConvertModal from './components/ConvertModal.jsx';
 import WordToPDFModal from './components/WordToPDFModal.jsx';
 import CompareView from './components/CompareView.jsx';
+import WatermarkModal from './components/WatermarkModal.jsx';
+import ShortcutsModal from './components/ShortcutsModal.jsx';
+import OCRModal from './components/OCRModal.jsx';
 import { exportAnnotatedPDF } from './utils/exportPDF.js';
+import { I18nProvider, useI18n, LANGUAGES } from './i18n.jsx';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
 const MAX_RECENT = 8;
@@ -47,13 +51,25 @@ function createTab(data, name, password = null) {
 }
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <AppInner />
+    </I18nProvider>
+  );
+}
+
+function AppInner() {
+  const { t, lang, setLang } = useI18n();
+
   // ── Tab state ──
   const [tabs, setTabs]             = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
 
   // ── App-level state (shared across tabs) ──
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [darkMode, setDarkMode]     = useState(true);
+  const [darkMode, setDarkMode]     = useState(() => {
+    try { const v = localStorage.getItem('kodari_darkmode'); return v !== null ? v === 'true' : true; } catch { return true; }
+  });
   const [isLoading, setIsLoading]   = useState(false);
   const [error, setError]           = useState(null);
   const [passwordNeeded, setPasswordNeeded] = useState(false);
@@ -66,8 +82,11 @@ export default function App() {
   const [annotationFontSize, setAnnotationFontSize] = useState(14);
   const [strokeWidth, setStrokeWidth]       = useState(2);
   const [viewMode, setViewMode]             = useState('single'); // 'single' | 'double'
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
+  const [searchRegex, setSearchRegex]       = useState(false);
   const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
   const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
   const deleteAnnotationRef = useRef(null);
   const imageInputRef    = useRef(null);
@@ -282,6 +301,9 @@ export default function App() {
         case 'd': case 'D': setActiveTool('draw'); break;
         case 'e': case 'E': setActiveTool('eraser'); break;
         case 't': case 'T': setActiveTool('add-text'); break;
+        case 'u': case 'U': setActiveTool('underline'); break;
+        case 's': case 'S': setActiveTool('strikethrough'); break;
+        case '?': setShowShortcuts((v) => !v); break;
         default: break;
       }
     }
@@ -339,7 +361,7 @@ export default function App() {
 
       {/* Password dialog */}
       {passwordNeeded && (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Password required">
           <div className="modal-box">
             <h2>Password Required</h2>
             <p>This PDF is password-protected. Enter the password to open it.</p>
@@ -465,6 +487,16 @@ export default function App() {
         <WordToPDFModal onClose={() => setActiveModal(null)} />
       )}
 
+      {activeModal === 'watermark' && (
+        <WatermarkModal
+          pdfData={activeTab?.data}
+          pdfName={activeTab?.name}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+
       <Toolbar
         pdfName={activeTab?.name}
         currentPage={activeTab?.currentPage || 1}
@@ -483,11 +515,15 @@ export default function App() {
         onZoomReset={zoomReset}
         onZoomFit={zoomFit}
         onZoomSet={zoomSet}
-        onToggleDark={() => setDarkMode((d) => !d)}
+        onToggleDark={() => setDarkMode((d) => { const next = !d; localStorage.setItem('kodari_darkmode', String(next)); return next; })}
         onToggleSidebar={() => setSidebarOpen((s) => !s)}
         onSearchChange={handleSearchChange}
         onSearchNext={searchNext}
         onSearchPrev={searchPrev}
+        searchCaseSensitive={searchCaseSensitive}
+        searchRegex={searchRegex}
+        onToggleSearchCase={() => setSearchCaseSensitive((v) => !v)}
+        onToggleSearchRegex={() => setSearchRegex((v) => !v)}
         onPrint={handlePrint}
         onFullscreen={handleFullscreen}
         onRotate={rotateCW}
@@ -512,6 +548,10 @@ export default function App() {
           if (id === 'compare') { setCompareMode(true); }
           else setActiveModal(id);
         }}
+        lang={lang}
+        languages={LANGUAGES}
+        onLangChange={setLang}
+        t={t}
       />
 
       {tabs.length > 0 && (
@@ -524,7 +564,7 @@ export default function App() {
         />
       )}
 
-      <div className="main-area">
+      <div className="main-area" role="main">
         {activeTab && sidebarOpen && (
           <Sidebar
             pdf={activeTab.pdfDoc}
@@ -572,6 +612,8 @@ export default function App() {
                 scale={tab.scale}
                 rotation={tab.rotation}
                 searchQuery={tab.searchQuery}
+                searchCaseSensitive={searchCaseSensitive}
+                searchRegex={searchRegex}
                 darkMode={darkMode}
                 viewMode={viewMode}
                 activeTool={activeTool}

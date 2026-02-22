@@ -27,7 +27,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 // ── Single page component ──────────────────────────────────────────────────
 function PageRenderer({
-  pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible,
+  pdf, pageNum, scale, fitWidth, rotation, searchQuery, searchCaseSensitive, searchRegex, darkMode, isVisible,
   activeTool, annotationColor, annotationFontSize, strokeWidth, pendingImage, annotations,
   onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation,
   annotationStorage,
@@ -134,7 +134,7 @@ function PageRenderer({
           });
 
           if (searchQuery && searchQuery.length > 1) {
-            applySearchHighlights(textLayer, searchQuery);
+            applySearchHighlights(textLayer, searchQuery, searchCaseSensitive, searchRegex);
           }
         }
 
@@ -194,13 +194,14 @@ function PageRenderer({
         renderTaskRef.current = null;
       }
     };
-  }, [pdf, pageNum, scale, fitWidth, rotation, searchQuery, darkMode, isVisible]);
+  }, [pdf, pageNum, scale, fitWidth, rotation, searchQuery, searchCaseSensitive, searchRegex, darkMode, isVisible]);
 
   // ── Text highlight creation via mouseup ──────────────────────────────────
   useEffect(() => {
     const wrapper = wrapperRef.current;
     const textLayer = textLayerRef.current;
-    if (!wrapper || !textLayer || activeTool !== 'highlight' || !viewport) return;
+    const isTextMarkup = ['highlight', 'underline', 'strikethrough'].includes(activeTool);
+    if (!wrapper || !textLayer || !isTextMarkup || !viewport) return;
 
     function handleMouseUp() {
       const selection = window.getSelection();
@@ -237,7 +238,7 @@ function PageRenderer({
       selection.removeAllRanges();
 
       onAddAnnotation({
-        type: 'highlight',
+        type: activeTool,
         page: pageNum,
         color: annotationColor,
         rects: pdfRects,
@@ -250,12 +251,12 @@ function PageRenderer({
   }, [activeTool, viewport, pageNum, annotationColor, onAddAnnotation]);
 
   // Toggle text layer pointer-events based on active tool
-  const textLayerInteractive = activeTool === 'cursor' || activeTool === 'highlight';
+  const textLayerInteractive = activeTool === 'cursor' || ['highlight','underline','strikethrough'].includes(activeTool);
 
   return (
     <div
       ref={wrapperRef}
-      className={`page-wrapper ${activeTool === 'highlight' ? 'highlight-mode' : ''}`}
+      className={`page-wrapper ${['highlight','underline','strikethrough'].includes(activeTool) ? 'highlight-mode' : ''}`}
       style={{ width: dimensions.w || 'auto', height: dimensions.h || 200 }}
       data-page={pageNum}
     >
@@ -280,7 +281,7 @@ function PageRenderer({
       <div
         ref={textLayerRef}
         className="text-layer"
-        style={{ pointerEvents: activeTool === 'highlight' ? 'auto' : 'none' }}
+        style={{ pointerEvents: ['highlight','underline','strikethrough'].includes(activeTool) ? 'auto' : 'none' }}
       />
 
       {/* pdfjs form layer — renders interactive form widgets (on top of text layer) */}
@@ -295,11 +296,28 @@ function PageRenderer({
   );
 }
 
-function applySearchHighlights(container, query) {
+function applySearchHighlights(container, query, caseSensitive = false, useRegex = false) {
   const spans = container.querySelectorAll('span');
-  const lq = query.toLowerCase();
+  let matcher;
+  if (useRegex) {
+    try {
+      const flags = caseSensitive ? 'g' : 'gi';
+      matcher = new RegExp(query, flags);
+    } catch {
+      return; // invalid regex, skip
+    }
+  }
   spans.forEach((span) => {
-    if (span.textContent.toLowerCase().includes(lq)) {
+    let match = false;
+    if (useRegex && matcher) {
+      matcher.lastIndex = 0;
+      match = matcher.test(span.textContent);
+    } else if (caseSensitive) {
+      match = span.textContent.includes(query);
+    } else {
+      match = span.textContent.toLowerCase().includes(query.toLowerCase());
+    }
+    if (match) {
       span.style.color           = 'rgba(0,0,0,0.01)';
       span.style.backgroundColor = 'rgba(255,210,0,0.45)';
       span.style.borderRadius    = '2px';
@@ -318,6 +336,8 @@ export default function PDFViewer({
   scale,
   rotation,
   searchQuery,
+  searchCaseSensitive,
+  searchRegex,
   darkMode,
   viewMode,     // 'single' | 'double'
   activeTool,
@@ -517,8 +537,10 @@ export default function PDFViewer({
                 fitWidth={isDouble ? doubleFitWidth : fitWidth}
                 rotation={rotation}
                 searchQuery={searchQuery}
+                searchCaseSensitive={searchCaseSensitive}
+                searchRegex={searchRegex}
                 darkMode={darkMode}
-                isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 1}
+                isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 2}
                 activeTool={activeTool || 'cursor'}
                 annotationColor={annotationColor || '#FFEA00'}
                 annotationFontSize={annotationFontSize || 14}
