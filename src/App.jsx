@@ -15,6 +15,7 @@ import ImageToPDFModal from './components/ImageToPDFModal.jsx';
 import SignatureModal from './components/SignatureModal.jsx';
 import ConvertModal from './components/ConvertModal.jsx';
 import WordToPDFModal from './components/WordToPDFModal.jsx';
+import CompareView from './components/CompareView.jsx';
 import { exportAnnotatedPDF } from './utils/exportPDF.js';
 
 const isElectron = typeof window !== 'undefined' && window.electronAPI?.isElectron;
@@ -64,6 +65,7 @@ export default function App() {
   const [annotationColor, setAnnotationColor] = useState('#FFEA00');
   const [annotationFontSize, setAnnotationFontSize] = useState(14);
   const [strokeWidth, setStrokeWidth]       = useState(2);
+  const [viewMode, setViewMode]             = useState('single'); // 'single' | 'double'
   const [pendingImage, setPendingImage]     = useState(null); // { dataURL, naturalW, naturalH }
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [activeAnnotations, setActiveAnnotations] = useState([]);
@@ -76,6 +78,9 @@ export default function App() {
 
   // ── Modal state ──
   const [activeModal, setActiveModal] = useState(null); // 'merge' | 'split' | etc.
+
+  // ── Compare mode ──
+  const [compareMode, setCompareMode] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -492,6 +497,8 @@ export default function App() {
         strokeWidth={strokeWidth}
         canUndo={canUndo}
         canRedo={canRedo}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
         onToolChange={(tool) => { setActiveTool(tool); if (tool !== 'add-image') setPendingImage(null); }}
         onColorChange={setAnnotationColor}
         onFontSizeChange={setAnnotationFontSize}
@@ -501,7 +508,10 @@ export default function App() {
         onAddImageClick={handleAddImageClick}
         onSignClick={() => setShowSignatureModal(true)}
         onExportPDF={handleExportPDF}
-        onToolsAction={setActiveModal}
+        onToolsAction={(id) => {
+          if (id === 'compare') { setCompareMode(true); }
+          else setActiveModal(id);
+        }}
       />
 
       {tabs.length > 0 && (
@@ -527,7 +537,17 @@ export default function App() {
         )}
 
         <div className="viewer-container">
-          {tabs.length === 0 && (
+          {/* ── Compare mode ── */}
+          {compareMode && activeTab && (
+            <CompareView
+              leftPdfData={activeTab.data}
+              leftPdfName={activeTab.name}
+              darkMode={darkMode}
+              onClose={() => setCompareMode(false)}
+            />
+          )}
+
+          {!compareMode && tabs.length === 0 && (
             <DropZone
               onDrop={handleDrop}
               onOpen={openFile}
@@ -539,7 +559,7 @@ export default function App() {
 
           {/* Render ALL tab viewers but only show the active one.
               This keeps each PDF loaded & rendered when switching tabs. */}
-          {tabs.map((tab) => (
+          {!compareMode && tabs.map((tab) => (
             <div
               key={tab.id}
               style={{ display: tab.id === activeTabId ? 'contents' : 'none' }}
@@ -553,6 +573,7 @@ export default function App() {
                 rotation={tab.rotation}
                 searchQuery={tab.searchQuery}
                 darkMode={darkMode}
+                viewMode={viewMode}
                 activeTool={activeTool}
                 annotationColor={annotationColor}
                 annotationFontSize={annotationFontSize}

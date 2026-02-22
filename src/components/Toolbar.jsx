@@ -18,6 +18,8 @@ const TOOLS_MENU = [
   { id: 'toimage',     label: 'PDF to Image',       icon: '🖼', desc: 'Export pages as JPEG/PNG'    },
   { id: 'toword',      label: 'PDF to Word',        icon: '📝', desc: 'Export text as .docx'        },
   { id: 'toexcel',     label: 'PDF to Excel',       icon: '📊', desc: 'Export tables as .xlsx'      },
+  'separator',
+  { id: 'compare',     label: 'Compare PDFs',       icon: '⇔',  desc: 'View two PDFs side by side'  },
 ];
 
 const ANNOTATION_COLORS = [
