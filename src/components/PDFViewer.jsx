@@ -319,6 +319,7 @@ export default function PDFViewer({
   rotation,
   searchQuery,
   darkMode,
+  viewMode,     // 'single' | 'double'
   activeTool,
   annotationColor,
   annotationFontSize,
@@ -478,35 +479,58 @@ export default function PDFViewer({
     );
   }
 
+  const isDouble = viewMode === 'double';
+  // In double mode: page 1 is alone, then pairs (2,3), (4,5), etc.
+  const pageRows = isDouble
+    ? (() => {
+        const rows = [];
+        // Page 1 always solo
+        rows.push([1]);
+        let i = 2;
+        while (i <= numPages) {
+          const pair = [i];
+          if (i + 1 <= numPages) pair.push(i + 1);
+          rows.push(pair);
+          i += 2;
+        }
+        return rows;
+      })()
+    : Array.from({ length: numPages }, (_, i) => [i + 1]);
+
+  const doubleFitWidth = isDouble ? Math.max(1, (fitWidth - 8) / 2) : fitWidth;
+
   return (
     <div className="pdf-viewer" ref={containerRef}>
       <div className="pages-stack">
-        {Array.from({ length: numPages }, (_, i) => i + 1).map((n) => (
+        {pageRows.map((rowPages) => (
           <div
-            key={n}
-            ref={(el) => { pageRefs.current[n] = el; }}
-            className="page-row"
+            key={rowPages[0]}
+            ref={(el) => { rowPages.forEach((n) => { pageRefs.current[n] = el; }); }}
+            className={isDouble && rowPages.length === 2 ? 'page-row page-row-double' : 'page-row'}
           >
-            <PageRenderer
-              pdf={pdf}
-              pageNum={n}
-              scale={scale}
-              fitWidth={fitWidth}
-              rotation={rotation}
-              searchQuery={searchQuery}
-              darkMode={darkMode}
-              isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 1}
-              activeTool={activeTool || 'cursor'}
-              annotationColor={annotationColor || '#FFEA00'}
-              annotationFontSize={annotationFontSize || 14}
-              strokeWidth={strokeWidth || 2}
-              pendingImage={pendingImage || null}
-              annotations={getPageAnnotations(n)}
-              onAddAnnotation={addAnnotation}
-              onUpdateAnnotation={updateAnnotation}
-              onDeleteAnnotation={deleteAnnotation}
-              annotationStorage={formStorage}
-            />
+            {rowPages.map((n) => (
+              <PageRenderer
+                key={n}
+                pdf={pdf}
+                pageNum={n}
+                scale={scale}
+                fitWidth={isDouble ? doubleFitWidth : fitWidth}
+                rotation={rotation}
+                searchQuery={searchQuery}
+                darkMode={darkMode}
+                isVisible={visiblePages.has(n) || Math.abs(n - currentPage) <= 1}
+                activeTool={activeTool || 'cursor'}
+                annotationColor={annotationColor || '#FFEA00'}
+                annotationFontSize={annotationFontSize || 14}
+                strokeWidth={strokeWidth || 2}
+                pendingImage={pendingImage || null}
+                annotations={getPageAnnotations(n)}
+                onAddAnnotation={addAnnotation}
+                onUpdateAnnotation={updateAnnotation}
+                onDeleteAnnotation={deleteAnnotation}
+                annotationStorage={formStorage}
+              />
+            ))}
           </div>
         ))}
       </div>
